@@ -104,35 +104,51 @@ export default function Channels() {
     switch (channelType) {
       case 'whatsapp':
         return [
-          'Go to WhatsApp Business API dashboard',
-          'Create a webhook endpoint',
-          'Set webhook URL to: [Your App URL]/api/webhooks/whatsapp',
-          'Add phone number verification',
-          'Test the connection'
+          'Go to https://business.whatsapp.com and sign up for WhatsApp Business API',
+          'In Meta Business Manager, go to "System Users" and create a new system user',
+          'Generate a permanent access token for WhatsApp Business API',
+          'Add your phone number: Go to WhatsApp Manager → Phone Numbers → Add Phone Number',
+          'Set webhook URL in Meta for Developers: https://developers.facebook.com → Your App → WhatsApp → Configuration',
+          `Enter webhook URL: ${window.location.origin}/api/webhooks/whatsapp`,
+          'Subscribe to webhook fields: messages, message_deliveries, message_reads',
+          'Verify webhook with the verification token provided in your app settings',
+          'Test by sending a message to your WhatsApp Business number'
         ];
       case 'facebook':
         return [
-          'Go to Facebook Developers console',
-          'Create a new app for Messenger',
-          'Set up webhook subscriptions',
-          'Add page access tokens',
-          'Configure webhook URL: [Your App URL]/api/webhooks/facebook'
+          'Go to https://developers.facebook.com and create a new app',
+          'Select "Business" as app type and add Messenger product',
+          'Go to Messenger → Settings in your app dashboard',
+          'Generate a Page Access Token for your Facebook Page',
+          'Set up webhooks: Click "Add Callback URL"',
+          `Enter webhook URL: ${window.location.origin}/api/webhooks/facebook`,
+          'Subscribe to these webhook fields: messages, messaging_postbacks, messaging_optins',
+          'In your Facebook Page settings, go to Advanced Messaging',
+          'Connect your page to your app and enable messaging',
+          'Test by sending a message to your Facebook Page'
         ];
       case 'instagram':
         return [
-          'Connect Instagram Business account',
-          'Set up Instagram Messaging API',
-          'Configure webhook endpoint',
-          'Add necessary permissions',
-          'Test direct message functionality'
+          'Go to https://business.facebook.com and connect your Instagram Business account',
+          'In Meta for Developers (https://developers.facebook.com), add Instagram Basic Display to your app',
+          'Go to Instagram → Basic Display → User Token Generator',
+          'Generate a long-lived access token for your Instagram account',
+          'Set up Instagram Messaging API in your app dashboard',
+          'Configure webhook endpoint in Messenger settings',
+          `Enter webhook URL: ${window.location.origin}/api/webhooks/instagram`,
+          'Subscribe to webhook events: messages, messaging_postbacks',
+          'In Instagram app settings, enable "Allow access to messages"',
+          'Test by sending a direct message to your Instagram Business account'
         ];
       case 'website':
         return [
-          'Copy the embed code below',
-          'Paste it before the closing </body> tag on your website',
-          'Customize the widget appearance',
-          'Test the chat functionality',
-          'Configure auto-responses'
+          'Copy the embed code provided below',
+          'Open your website files or CMS admin panel',
+          'Locate your main template file (usually index.html or footer template)',
+          'Paste the code just before the closing </body> tag',
+          'Save and publish your website changes',
+          'Test the chat widget appears in bottom-right corner',
+          'Customize colors and position in the widget settings if needed'
         ];
       default:
         return ['Configuration steps not available'];
