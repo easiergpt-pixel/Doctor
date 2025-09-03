@@ -24,7 +24,8 @@ import {
   Instagram, 
   Settings,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  MessageCircle
 } from "lucide-react";
 
 const channelFormSchema = z.object({
@@ -157,6 +158,12 @@ export default function Channels() {
           { key: 'pageId', label: 'Connected Facebook Page ID', type: 'text', placeholder: 'Facebook Page linked to Instagram' },
           { key: 'verifyToken', label: 'Webhook Verify Token', type: 'text', placeholder: 'Custom verification token' }
         ];
+      case 'telegram':
+        return [
+          { key: 'botToken', label: 'Bot Token', type: 'password', placeholder: 'Token from @BotFather (e.g., 123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11)' },
+          { key: 'botUsername', label: 'Bot Username', type: 'text', placeholder: 'Your bot username (e.g., @YourBusinessBot)' },
+          { key: 'webhookSecret', label: 'Webhook Secret Token', type: 'password', placeholder: 'Custom secret for webhook security' }
+        ];
       case 'website':
         return [
           { key: 'widgetTitle', label: 'Chat Widget Title', type: 'text', placeholder: 'e.g., "Chat with us!"' },
@@ -215,6 +222,22 @@ export default function Channels() {
           'In the Instagram section, enable "instagram_messaging" webhook subscription',
           'Test by sending a direct message to your Instagram Business account'
         ];
+      case 'telegram':
+        return [
+          'Open Telegram and search for @BotFather',
+          'Start a chat with BotFather and send /newbot command',
+          'Choose a name for your bot (e.g., "Your Business Assistant")',
+          'Choose a username for your bot (must end with "bot", e.g., "yourbusinessbot")',
+          'BotFather will give you a Bot Token - copy and save it securely',
+          'Set bot description with /setdescription command for better user experience',
+          'Configure bot commands with /setcommands (optional but recommended)',
+          `Set webhook URL: Send a POST request to https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook`,
+          `Webhook URL should be: ${window.location.origin}/api/webhooks/telegram`,
+          'Include your webhook secret token in the request for security',
+          'Test by sending a message to your bot on Telegram',
+          'Enable inline mode with /setinline if you want users to use the bot in any chat',
+          'Set bot profile photo with /setuserpic for professional appearance'
+        ];
       case 'website':
         return [
           'Copy the embed code provided below',
@@ -240,6 +263,8 @@ export default function Channels() {
         return <Facebook className="h-6 w-6 text-blue-600" />;
       case 'instagram':
         return <Instagram className="h-6 w-6 text-pink-500" />;
+      case 'telegram':
+        return <MessageCircle className="h-6 w-6 text-blue-400" />;
       default:
         return <Settings className="h-6 w-6 text-gray-500" />;
     }
@@ -311,6 +336,7 @@ export default function Channels() {
                                 <SelectItem value="whatsapp">WhatsApp Business</SelectItem>
                                 <SelectItem value="facebook">Facebook Messenger</SelectItem>
                                 <SelectItem value="instagram">Instagram DM</SelectItem>
+                                <SelectItem value="telegram">Telegram Bot</SelectItem>
                               </SelectContent>
                             </Select>
                             <FormMessage />
