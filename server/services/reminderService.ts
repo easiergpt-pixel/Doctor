@@ -65,9 +65,12 @@ export class ReminderService {
     Keep it concise for ${reminderType} delivery.`;
 
     try {
-      const response = await generateAIResponse([
-        { role: 'user', content: prompt }
-      ], booking.userId); // Generate reminder message
+      const response = await generateAIResponse(
+        booking.userId,
+        prompt,
+        [],
+        'Generate appointment reminder message'
+      ); // Generate reminder message
       return response.message;
     } catch (error) {
       console.error('Error generating reminder message:', error);

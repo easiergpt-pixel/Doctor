@@ -4,8 +4,15 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Smartphone, Globe, Facebook, Instagram } from "lucide-react";
 
+interface Channel {
+  id: string;
+  name: string;
+  type: string;
+  isActive: boolean;
+}
+
 export default function ChannelsOverview() {
-  const { data: channels, isLoading } = useQuery({
+  const { data: channels, isLoading } = useQuery<Channel[]>({
     queryKey: ["/api/channels"],
   });
 
@@ -59,7 +66,7 @@ export default function ChannelsOverview() {
     { type: 'instagram', name: 'Instagram DM', isActive: false },
   ];
 
-  const channelsToShow = channels?.length > 0 ? channels : defaultChannels;
+  const channelsToShow = (channels && channels.length > 0) ? channels : defaultChannels;
 
   return (
     <Card className="fade-in">
@@ -73,7 +80,7 @@ export default function ChannelsOverview() {
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {channelsToShow.map((channel: any, index: number) => {
+          {channelsToShow.map((channel: Channel | any, index: number) => {
             const conversations = getChannelStats(channel.type);
             const isActive = channel.isActive !== false;
             

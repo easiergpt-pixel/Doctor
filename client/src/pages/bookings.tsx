@@ -148,15 +148,25 @@ export default function Bookings() {
 
   // Today's bookings for quick view
   const todaysBookings = Array.isArray(bookings) ? bookings.filter((booking: any) => {
-    const bookingDate = parseISO(booking.dateTime);
-    return isToday(bookingDate);
+    if (!booking.dateTime) return false;
+    try {
+      const bookingDate = parseISO(booking.dateTime);
+      return isToday(bookingDate);
+    } catch {
+      return false;
+    }
   }) : [];
 
   // Helper to get bookings for a specific date
   const getBookingsForDate = (date: Date) => {
     return Array.isArray(bookings) ? bookings.filter((booking: any) => {
-      const bookingDate = parseISO(booking.dateTime);
-      return bookingDate && isSameDay(bookingDate, date);
+      if (!booking.dateTime) return false;
+      try {
+        const bookingDate = parseISO(booking.dateTime);
+        return bookingDate && isSameDay(bookingDate, date);
+      } catch {
+        return false;
+      }
     }) : [];
   };
 
@@ -204,9 +214,13 @@ export default function Bookings() {
 
   return (
     <div className="flex h-screen bg-background">
-      <Sidebar open={sidebarOpen} onOpenChange={setSidebarOpen} />
+      <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <Header onMenuClick={() => setSidebarOpen(true)} />
+        <Header 
+          title="Bookings & Calendar" 
+          subtitle="Manage appointments and calendar view"
+          onMenuToggle={() => setSidebarOpen(true)} 
+        />
         <main className="flex-1 overflow-auto p-6">
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-2xl font-bold">Bookings & Calendar</h1>
@@ -436,7 +450,7 @@ export default function Bookings() {
                                 }}
                                 data-testid={`appointment-${booking.id}`}
                               >
-                                <div className="font-medium">{format(parseISO(booking.dateTime), 'HH:mm')}</div>
+                                <div className="font-medium">{booking.dateTime ? format(parseISO(booking.dateTime), 'HH:mm') : 'N/A'}</div>
                                 <div className="truncate">{booking.service?.slice(0, 12) || 'Service'}</div>
                               </div>
                             ))}
@@ -485,7 +499,7 @@ export default function Bookings() {
                               <div className="flex items-center gap-3 mb-3">
                                 <div className="w-3 h-3 rounded-full bg-current opacity-80"></div>
                                 <span className="font-bold text-lg">
-                                  {format(parseISO(booking.dateTime), 'HH:mm')}
+                                  {booking.dateTime ? format(parseISO(booking.dateTime), 'HH:mm') : 'N/A'}
                                 </span>
                                 <Badge className={`${getStatusColor(booking.status)} font-medium`}>
                                   {booking.status?.toUpperCase()}
@@ -534,10 +548,10 @@ export default function Bookings() {
                     <Clock className="h-8 w-8 text-primary" />
                     <div>
                       <p className="text-2xl font-bold">
-                        {format(parseISO(selectedBooking.dateTime), 'HH:mm')}
+                        {selectedBooking.dateTime ? format(parseISO(selectedBooking.dateTime), 'HH:mm') : 'N/A'}
                       </p>
                       <p className="text-muted-foreground">
-                        {format(parseISO(selectedBooking.dateTime), 'EEEE, MMMM d, yyyy')}
+                        {selectedBooking.dateTime ? format(parseISO(selectedBooking.dateTime), 'EEEE, MMMM d, yyyy') : 'N/A'}
                       </p>
                     </div>
                     <Badge className={`ml-auto ${getStatusColor(selectedBooking.status)}`}>
@@ -601,7 +615,13 @@ export default function Bookings() {
                           onClick={() => {
                             form.reset({
                               service: selectedBooking.service || "",
-                              dateTime: selectedBooking.dateTime ? format(parseISO(selectedBooking.dateTime), "yyyy-MM-dd'T'HH:mm") : "",
+                              dateTime: selectedBooking.dateTime ? (function() {
+                                try {
+                                  return format(parseISO(selectedBooking.dateTime), "yyyy-MM-dd'T'HH:mm");
+                                } catch {
+                                  return "";
+                                }
+                              })() : "",
                               customerName: selectedBooking.customerName || "",
                               customerPhone: selectedBooking.customerPhone || "",
                               customerEmail: selectedBooking.customerEmail || "",

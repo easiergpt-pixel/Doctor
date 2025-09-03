@@ -2,15 +2,22 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { MessageSquare, CalendarCheck, Clock, Smile } from "lucide-react";
 
+interface StatsData {
+  totalConversations: number;
+  bookingsMade: number;
+  avgResponseTime: string;
+  satisfactionRate: string;
+}
+
 export default function StatsGrid() {
-  const { data: stats, isLoading } = useQuery({
+  const { data: stats, isLoading } = useQuery<StatsData>({
     queryKey: ["/api/stats"],
   });
 
   const statsData = [
     {
       title: "Total Conversations",
-      value: stats?.totalConversations?.toLocaleString() || "0",
+      value: (stats?.totalConversations ?? 0).toLocaleString(),
       change: "+12%",
       changeText: "from last month",
       icon: MessageSquare,
@@ -19,7 +26,7 @@ export default function StatsGrid() {
     },
     {
       title: "Bookings Made",
-      value: stats?.bookingsMade?.toLocaleString() || "0",
+      value: (stats?.bookingsMade ?? 0).toLocaleString(),
       change: "+8%",
       changeText: "from last week",
       icon: CalendarCheck,
@@ -28,7 +35,7 @@ export default function StatsGrid() {
     },
     {
       title: "Avg Response Time",
-      value: stats?.avgResponseTime || "0.0s",
+      value: stats?.avgResponseTime ?? "0.0s",
       change: "-15%",
       changeText: "improvement",
       icon: Clock,
@@ -37,7 +44,7 @@ export default function StatsGrid() {
     },
     {
       title: "Satisfaction Rate",
-      value: stats?.satisfactionRate || "0%",
+      value: stats?.satisfactionRate ?? "0%",
       change: "+2%",
       changeText: "from last month",
       icon: Smile,

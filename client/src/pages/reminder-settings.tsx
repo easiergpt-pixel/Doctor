@@ -80,13 +80,14 @@ export default function ReminderSettings() {
   // Update form when preferences are loaded
   useEffect(() => {
     if (preferences && typeof preferences === 'object') {
+      const prefs = preferences as any;
       form.reset({
-        emailReminders: preferences.emailReminders ?? true,
-        smsReminders: preferences.smsReminders ?? false,
-        whatsappReminders: preferences.whatsappReminders ?? false,
-        reminderTiming: Array.isArray(preferences.reminderTiming) ? preferences.reminderTiming : ['24h', '1h'],
-        customMessage: preferences.customMessage || '',
-        language: preferences.language || 'en',
+        emailReminders: prefs.emailReminders ?? true,
+        smsReminders: prefs.smsReminders ?? false,
+        whatsappReminders: prefs.whatsappReminders ?? false,
+        reminderTiming: Array.isArray(prefs.reminderTiming) ? prefs.reminderTiming : ['24h', '1h'],
+        customMessage: prefs.customMessage || '',
+        language: prefs.language || 'en',
       });
     }
   }, [preferences, form]);
