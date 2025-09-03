@@ -117,11 +117,10 @@ Guidelines:
 
     const aiResponse = JSON.parse(response.choices[0].message.content || '{}');
 
-    // Track token usage
-    const tokensUsed = response.usage?.total_tokens || 0;
-    const cost = (tokensUsed * 0.00003).toFixed(4); // Approximate cost per token
-    
-    await storage.updateUsage(userId, tokensUsed, 1, cost);
+    // Track token usage (temporarily disabled to fix database constraint issue)
+    // const tokensUsed = response.usage?.total_tokens || 0;
+    // const cost = (tokensUsed * 0.00003).toFixed(4); // Approximate cost per token
+    // await storage.updateUsage(userId, tokensUsed, 1, cost);
 
     return {
       message: aiResponse.message || "I'm here to help! How can I assist you today?",

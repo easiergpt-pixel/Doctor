@@ -332,23 +332,31 @@ export class DatabaseStorage implements IStorage {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    await db
-      .insert(usage)
-      .values({
-        userId,
-        date: today,
-        tokensUsed,
-        messagesProcessed,
-        cost,
-      })
-      .onConflictDoUpdate({
-        target: [usage.userId, usage.date],
-        set: {
-          tokensUsed: sql`${usage.tokensUsed} + ${tokensUsed}`,
-          messagesProcessed: sql`${usage.messagesProcessed} + ${messagesProcessed}`,
-          cost: sql`${usage.cost} + ${cost}`,
-        },
-      });
+    // Check if usage record exists for today
+    const existingUsage = await this.getTodaysUsage(userId);
+    
+    if (existingUsage) {
+      // Update existing record
+      await db
+        .update(usage)
+        .set({
+          tokensUsed: existingUsage.tokensUsed + tokensUsed,
+          messagesProcessed: existingUsage.messagesProcessed + messagesProcessed,
+          cost: (parseFloat(existingUsage.cost) + parseFloat(cost)).toFixed(4),
+        })
+        .where(and(eq(usage.userId, userId), sql`DATE(${usage.date}) = DATE(${today})`));
+    } else {
+      // Create new record
+      await db
+        .insert(usage)
+        .values({
+          userId,
+          date: today,
+          tokensUsed,
+          messagesProcessed,
+          cost,
+        });
+    }
   }
 }
 

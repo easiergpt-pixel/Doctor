@@ -25,6 +25,7 @@ function Router() {
         <>
           <Route path="/" component={Dashboard} />
           <Route path="/conversations" component={Conversations} />
+          <Route path="/conversations/:id" component={Conversations} />
           <Route path="/channels" component={Channels} />
           <Route path="/bookings" component={Bookings} />
           <Route path="/customers" component={Customers} />
