@@ -38,9 +38,11 @@ export default function Conversations() {
     enabled: isAuthenticated,
   });
 
-  const filteredConversations = conversations?.filter((conv: any) =>
-    conv.channel?.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
+  const filteredConversations = Array.isArray(conversations) 
+    ? conversations.filter((conv: any) =>
+        conv.channel?.toLowerCase().includes(searchTerm.toLowerCase())
+      ) 
+    : [];
 
   if (isLoading || !isAuthenticated) {
     return (

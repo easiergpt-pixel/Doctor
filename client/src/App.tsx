@@ -8,6 +8,7 @@ import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import Dashboard from "@/pages/dashboard";
 import Conversations from "@/pages/conversations";
+import ConversationDetail from "@/pages/conversation-detail";
 import Channels from "@/pages/channels";
 import Bookings from "@/pages/bookings";
 import Customers from "@/pages/customers";
@@ -25,7 +26,7 @@ function Router() {
         <>
           <Route path="/" component={Dashboard} />
           <Route path="/conversations" component={Conversations} />
-          <Route path="/conversations/:id" component={Conversations} />
+          <Route path="/conversations/:id" component={ConversationDetail} />
           <Route path="/channels" component={Channels} />
           <Route path="/bookings" component={Bookings} />
           <Route path="/customers" component={Customers} />

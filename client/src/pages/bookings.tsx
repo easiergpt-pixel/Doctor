@@ -32,6 +32,7 @@ export default function Bookings() {
   const { isAuthenticated, isLoading } = useAuth();
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingBooking, setEditingBooking] = useState<any>(null);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -68,6 +69,19 @@ export default function Bookings() {
       customerEmail: "",
     },
   });
+
+  const handleEditBooking = (booking: any) => {
+    setEditingBooking(booking);
+    form.reset({
+      service: booking.service,
+      dateTime: booking.dateTime ? new Date(booking.dateTime).toISOString().slice(0, 16) : "",
+      notes: booking.notes || "",
+      customerName: booking.customerId?.slice(0, 8) || "",
+      customerPhone: "",
+      customerEmail: "",
+    });
+    setIsDialogOpen(true);
+  };
 
   const createBookingMutation = useMutation({
     mutationFn: async (data: z.infer<typeof bookingFormSchema>) => {
@@ -123,7 +137,7 @@ export default function Bookings() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      <Sidebar />
+      <Sidebar isOpen={false} onToggle={() => {}} />
       
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header 
@@ -142,7 +156,7 @@ export default function Bookings() {
                     <div className="ml-4">
                       <p className="text-sm font-medium text-muted-foreground">Today's Bookings</p>
                       <p className="text-2xl font-bold text-foreground" data-testid="text-todays-bookings">
-                        {todaysBookings?.length || 0}
+                        {Array.isArray(todaysBookings) ? todaysBookings.length : 0}
                       </p>
                     </div>
                   </div>
@@ -156,7 +170,7 @@ export default function Bookings() {
                     <div className="ml-4">
                       <p className="text-sm font-medium text-muted-foreground">Total Bookings</p>
                       <p className="text-2xl font-bold text-foreground" data-testid="text-total-bookings">
-                        {bookings?.length || 0}
+                        {Array.isArray(bookings) ? bookings.length : 0}
                       </p>
                     </div>
                   </div>
@@ -170,7 +184,7 @@ export default function Bookings() {
                     <div className="ml-4">
                       <p className="text-sm font-medium text-muted-foreground">Confirmed</p>
                       <p className="text-2xl font-bold text-foreground" data-testid="text-confirmed-bookings">
-                        {bookings?.filter((b: any) => b.status === 'confirmed').length || 0}
+                        {Array.isArray(bookings) ? bookings.filter((b: any) => b.status === 'confirmed').length : 0}
                       </p>
                     </div>
                   </div>
@@ -330,7 +344,7 @@ export default function Bookings() {
               <div className="flex items-center justify-center py-12">
                 <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
               </div>
-            ) : bookings?.length === 0 ? (
+            ) : !Array.isArray(bookings) || bookings.length === 0 ? (
               <Card>
                 <CardContent className="flex flex-col items-center justify-center py-12">
                   <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
@@ -346,7 +360,7 @@ export default function Bookings() {
               </Card>
             ) : (
               <div className="space-y-4">
-                {bookings?.map((booking: any) => (
+                {Array.isArray(bookings) && bookings.map((booking: any) => (
                   <Card key={booking.id} className="hover:shadow-md transition-shadow">
                     <CardContent className="p-6">
                       <div className="flex items-center justify-between">
@@ -383,7 +397,12 @@ export default function Bookings() {
                             </p>
                           </div>
                           
-                          <Button variant="outline" size="sm" data-testid={`button-edit-booking-${booking.id}`}>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => handleEditBooking(booking)}
+                            data-testid={`button-edit-booking-${booking.id}`}
+                          >
                             Edit
                           </Button>
                         </div>
@@ -395,14 +414,14 @@ export default function Bookings() {
             )}
 
             {/* Today's Schedule */}
-            {todaysBookings && todaysBookings.length > 0 && (
+            {Array.isArray(todaysBookings) && todaysBookings.length > 0 && (
               <Card>
                 <CardHeader>
                   <CardTitle>Today's Schedule</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {todaysBookings.map((booking: any) => (
+                    {Array.isArray(todaysBookings) && todaysBookings.map((booking: any) => (
                       <div key={booking.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
                         <div className="flex items-center space-x-3">
                           <div className="w-2 h-8 bg-primary rounded-full"></div>
