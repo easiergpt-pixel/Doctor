@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Bell, Moon, Plus, Menu } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
+import { Link } from "wouter";
 
 interface HeaderProps {
   title: string;
@@ -23,10 +24,20 @@ export default function Header({ title, subtitle, onMenuToggle }: HeaderProps) {
     enabled: isAuthenticated,
   });
   
-  // Calculate notification count
-  const unreadConversations = Array.isArray(conversations) ? conversations.filter((c: any) => !c.isRead).length : 0;
+  // Calculate notification count - only truly unread/pending items
+  // For conversations: only recent active ones (last 24 hours)
+  const recentActiveConversations = Array.isArray(conversations) ? conversations.filter((c: any) => {
+    if (c.status !== 'active') return false;
+    if (!c.lastMessageAt) return true; // No messages yet, count as unread
+    const lastMessage = new Date(c.lastMessageAt);
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    return lastMessage > oneDayAgo;
+  }).length : 0;
+  
   const pendingBookings = Array.isArray(bookings) ? bookings.filter((b: any) => b.status === 'pending').length : 0;
-  const totalNotifications = unreadConversations + pendingBookings;
+  
+  // Cap notifications to prevent overwhelming display
+  const totalNotifications = Math.min(recentActiveConversations + pendingBookings, 99);
   return (
     <header className="bg-card border-b border-border px-4 md:px-6 py-4">
       <div className="flex items-center justify-between">
@@ -49,14 +60,16 @@ export default function Header({ title, subtitle, onMenuToggle }: HeaderProps) {
         
         <div className="flex items-center space-x-2 md:space-x-4">
           {/* Notification Bell */}
-          <Button variant="ghost" size="sm" className="relative" data-testid="button-notifications">
-            <Bell className="h-5 w-5" />
-            {totalNotifications > 0 && (
-              <span className="absolute -top-1 -right-1 w-5 h-5 bg-destructive text-destructive-foreground text-xs rounded-full flex items-center justify-center">
-                {totalNotifications > 99 ? '99+' : totalNotifications}
-              </span>
-            )}
-          </Button>
+          <Link href="/reminder-settings">
+            <Button variant="ghost" size="sm" className="relative" data-testid="button-notifications">
+              <Bell className="h-5 w-5" />
+              {totalNotifications > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-destructive text-destructive-foreground text-xs rounded-full flex items-center justify-center">
+                  {totalNotifications > 99 ? '99+' : totalNotifications}
+                </span>
+              )}
+            </Button>
+          </Link>
           
           {/* Theme Toggle */}
           <Button variant="ghost" size="sm" data-testid="button-theme-toggle">

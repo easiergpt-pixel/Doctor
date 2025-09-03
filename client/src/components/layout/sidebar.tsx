@@ -50,7 +50,7 @@ const getNavigationItems = (unreadConversations: number, pendingBookings: number
     title: "Bookings",
     href: "/bookings",
     icon: Calendar,
-    badge: pendingBookings > 0 ? pendingBookings : undefined,
+    badge: Math.min(pendingBookings, 99) > 0 ? Math.min(pendingBookings, 99) : undefined,
     badgeVariant: "secondary" as const,
   },
   {
@@ -108,9 +108,20 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
     enabled: isAuthenticated,
   });
   
-  // Calculate dynamic counts
-  const unreadConversations = Array.isArray(conversations) ? conversations.filter((c: any) => !c.isRead).length : 0;
+  // Calculate dynamic counts with realistic limits
+  // For conversations: only show recent active ones as "unread" (last 24 hours)
+  const recentActiveConversations = Array.isArray(conversations) ? conversations.filter((c: any) => {
+    if (c.status !== 'active') return false;
+    if (!c.lastMessageAt) return true; // No messages yet, count as unread
+    const lastMessage = new Date(c.lastMessageAt);
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    return lastMessage > oneDayAgo;
+  }).length : 0;
+  
   const pendingBookings = Array.isArray(bookings) ? bookings.filter((b: any) => b.status === 'pending').length : 0;
+  
+  // Cap the counts to reasonable numbers
+  const unreadConversations = Math.min(recentActiveConversations, 99);
   
   const navigationItems = getNavigationItems(unreadConversations, pendingBookings);
 
