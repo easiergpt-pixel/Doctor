@@ -311,6 +311,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // AI Settings
+  app.put('/api/ai-settings', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { preferredLanguage, aiPromptCustomization, aiLanguageInstructions } = req.body;
+
+      await storage.updateUserAISettings(userId, {
+        preferredLanguage,
+        aiPromptCustomization,
+        aiLanguageInstructions,
+      });
+
+      res.json({ message: "AI settings updated successfully" });
+    } catch (error) {
+      console.error("Error updating AI settings:", error);
+      res.status(500).json({ message: "Failed to update AI settings" });
+    }
+  });
+
   // Local subscription management
   app.post('/api/create-subscription', isAuthenticated, async (req: any, res) => {
     const userId = req.user.claims.sub;

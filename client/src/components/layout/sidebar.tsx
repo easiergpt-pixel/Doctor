@@ -51,8 +51,8 @@ const navigationItems = [
     icon: BarChart3,
   },
   {
-    title: "AI Training",
-    href: "/ai-training",
+    title: "AI Settings",
+    href: "/ai-settings",
     icon: Brain,
   },
 ];

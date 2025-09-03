@@ -6,6 +6,22 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY_ENV_VAR || "",
 });
 
+function getLanguageInstructions(languageCode: string): string {
+  const languages: Record<string, string> = {
+    'en': 'Respond in English. Use professional business language.',
+    'az': 'Azərbaycan dilində cavab verin. Hörmətli və peşəkar üslubu istifadə edin. Azərbaycan mədəniyyətinin xüsusiyyətlərini nəzərə alın.',
+    'ru': 'Отвечайте на русском языке. Используйте вежливый и профессиональный стиль общения. Учитывайте культурные особенности.',
+    'tr': 'Türkçe yanıt verin. Saygılı ve profesyonel bir üslup kullanın.',
+    'es': 'Responde en español. Usa un lenguaje profesional y cortés.',
+    'fr': 'Répondez en français. Utilisez un langage professionnel et poli.',
+    'de': 'Antworten Sie auf Deutsch. Verwenden Sie eine professionelle und höfliche Sprache.',
+    'pt': 'Responda em português. Use linguagem profissional e educada.',
+    'ar': 'أجب باللغة العربية. استخدم لغة مهنية ومهذبة.',
+  };
+  
+  return languages[languageCode] || languages['en'];
+}
+
 export interface AIResponse {
   message: string;
   action?: 'booking' | 'information' | 'handoff';
@@ -39,7 +55,11 @@ export async function generateAIResponse(
       ? trainingData.map(t => `${t.category}: ${t.content}`).join('\n')
       : 'General customer service for appointment booking and information requests.';
 
-    const systemPrompt = `You are an AI receptionist for ${user?.businessName || 'the business'}. Your role is to:
+    // Language-specific instructions
+    const languageInstructions = getLanguageInstructions(user?.preferredLanguage || 'en');
+    
+    // Build system prompt with language and custom instructions
+    let systemPrompt = `You are an AI receptionist for ${user?.businessName || 'the business'}. Your role is to:
 1. Answer customer questions professionally and helpfully
 2. Help customers book appointments when requested
 3. Collect necessary information for bookings (name, service, preferred date/time, contact info)
@@ -51,6 +71,13 @@ ${businessInfo}
 
 Training Data:
 ${trainingContext}
+
+Language Instructions:
+${languageInstructions}
+
+${user?.aiPromptCustomization ? `Custom Instructions:\n${user.aiPromptCustomization}\n\n` : ''}
+
+${user?.aiLanguageInstructions ? `Additional Language Guidelines:\n${user.aiLanguageInstructions}\n\n` : ''}
 
 When responding, always provide a JSON response with this format:
 {

@@ -37,6 +37,10 @@ export const users = pgTable("users", {
   stripeCustomerId: varchar("stripe_customer_id"),
   stripeSubscriptionId: varchar("stripe_subscription_id"),
   subscriptionStatus: varchar("subscription_status").default("inactive"),
+  // AI and Language Settings
+  preferredLanguage: varchar("preferred_language").default("en"), // en, az, ru, etc.
+  aiPromptCustomization: text("ai_prompt_customization"), // custom system prompt
+  aiLanguageInstructions: text("ai_language_instructions"), // language-specific instructions
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

@@ -12,6 +12,7 @@ import Channels from "@/pages/channels";
 import Bookings from "@/pages/bookings";
 import Customers from "@/pages/customers";
 import Billing from "@/pages/billing";
+import AISettings from "@/pages/ai-settings";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -28,6 +29,7 @@ function Router() {
           <Route path="/bookings" component={Bookings} />
           <Route path="/customers" component={Customers} />
           <Route path="/billing" component={Billing} />
+          <Route path="/ai-settings" component={AISettings} />
         </>
       )}
       <Route component={NotFound} />

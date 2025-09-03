@@ -32,6 +32,7 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
   updateUserSubscriptionStatus(id: string, status: string, plan?: string): Promise<User>;
+  updateUserAISettings(id: string, settings: { preferredLanguage?: string; aiPromptCustomization?: string; aiLanguageInstructions?: string; }): Promise<void>;
 
   // Customer operations
   createCustomer(customer: InsertCustomer): Promise<Customer>;
@@ -106,6 +107,16 @@ export class DatabaseStorage implements IStorage {
       .where(eq(users.id, id))
       .returning();
     return user;
+  }
+
+  async updateUserAISettings(id: string, settings: { preferredLanguage?: string; aiPromptCustomization?: string; aiLanguageInstructions?: string; }): Promise<void> {
+    await db
+      .update(users)
+      .set({
+        ...settings,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, id));
   }
 
   // Customer operations
