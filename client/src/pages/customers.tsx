@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import Sidebar from "@/components/layout/sidebar";
@@ -30,7 +31,7 @@ export default function Customers() {
     }
   }, [isAuthenticated, isLoading, toast]);
 
-  const { data: customers, isLoading: customersLoading } = useQuery({
+  const { data: customers, isLoading: customersLoading } = useQuery<any[]>({
     queryKey: ["/api/customers"],
     enabled: isAuthenticated,
   });
@@ -66,7 +67,7 @@ export default function Customers() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      <Sidebar />
+      <Sidebar isOpen={false} onToggle={() => {}} />
       
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header 
@@ -220,10 +221,32 @@ export default function Customers() {
                           </div>
                           
                           <div className="flex space-x-2">
-                            <Button variant="outline" size="sm" data-testid={`button-view-customer-${customer.id}`}>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => {
+                                toast({
+                                  title: "Customer Profile",
+                                  description: `Viewing profile for ${customer.name || 'Unknown Customer'}`,
+                                });
+                                // TODO: Navigate to customer detail page or open modal
+                              }}
+                              data-testid={`button-view-customer-${customer.id}`}
+                            >
                               View Profile
                             </Button>
-                            <Button variant="outline" size="sm" data-testid={`button-message-customer-${customer.id}`}>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => {
+                                toast({
+                                  title: "Start Conversation",
+                                  description: `Starting conversation with ${customer.name || 'Unknown Customer'}`,
+                                });
+                                // TODO: Navigate to conversation or create new conversation
+                              }}
+                              data-testid={`button-message-customer-${customer.id}`}
+                            >
                               <MessageSquare className="h-4 w-4" />
                             </Button>
                           </div>

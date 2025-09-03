@@ -1,5 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Bell, Moon, Plus, Menu } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/useAuth";
 
 interface HeaderProps {
   title: string;
@@ -8,6 +10,23 @@ interface HeaderProps {
 }
 
 export default function Header({ title, subtitle, onMenuToggle }: HeaderProps) {
+  const { isAuthenticated } = useAuth();
+  
+  // Fetch pending reminders and notifications
+  const { data: conversations } = useQuery({
+    queryKey: ["/api/conversations"],
+    enabled: isAuthenticated,
+  });
+  
+  const { data: bookings } = useQuery({
+    queryKey: ["/api/bookings"],
+    enabled: isAuthenticated,
+  });
+  
+  // Calculate notification count
+  const unreadConversations = Array.isArray(conversations) ? conversations.filter((c: any) => !c.isRead).length : 0;
+  const pendingBookings = Array.isArray(bookings) ? bookings.filter((b: any) => b.status === 'pending').length : 0;
+  const totalNotifications = unreadConversations + pendingBookings;
   return (
     <header className="bg-card border-b border-border px-4 md:px-6 py-4">
       <div className="flex items-center justify-between">
@@ -32,9 +51,11 @@ export default function Header({ title, subtitle, onMenuToggle }: HeaderProps) {
           {/* Notification Bell */}
           <Button variant="ghost" size="sm" className="relative" data-testid="button-notifications">
             <Bell className="h-5 w-5" />
-            <span className="absolute -top-1 -right-1 w-5 h-5 bg-destructive text-destructive-foreground text-xs rounded-full flex items-center justify-center">
-              3
-            </span>
+            {totalNotifications > 0 && (
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-destructive text-destructive-foreground text-xs rounded-full flex items-center justify-center">
+                {totalNotifications > 99 ? '99+' : totalNotifications}
+              </span>
+            )}
           </Button>
           
           {/* Theme Toggle */}

@@ -1,6 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
+import { useQuery } from "@tanstack/react-query";
 import { 
   Bot, 
   BarChart3, 
@@ -20,7 +21,15 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
 
-const navigationItems = [
+interface NavigationItem {
+  title: string;
+  href: string;
+  icon: any;
+  badge?: number;
+  badgeVariant?: "default" | "secondary";
+}
+
+const getNavigationItems = (unreadConversations: number, pendingBookings: number): NavigationItem[] => [
   {
     title: "Dashboard",
     href: "/",
@@ -30,7 +39,7 @@ const navigationItems = [
     title: "Conversations",
     href: "/conversations",
     icon: MessageSquare,
-    badge: 12,
+    badge: unreadConversations > 0 ? unreadConversations : undefined,
   },
   {
     title: "Channels",
@@ -41,7 +50,7 @@ const navigationItems = [
     title: "Bookings",
     href: "/bookings",
     icon: Calendar,
-    badge: 3,
+    badge: pendingBookings > 0 ? pendingBookings : undefined,
     badgeVariant: "secondary" as const,
   },
   {
@@ -86,7 +95,24 @@ interface SidebarProps {
 
 export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
   const [location] = useLocation();
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
+  
+  // Fetch conversation and booking counts
+  const { data: conversations } = useQuery({
+    queryKey: ["/api/conversations"],
+    enabled: isAuthenticated,
+  });
+  
+  const { data: bookings } = useQuery({
+    queryKey: ["/api/bookings"],
+    enabled: isAuthenticated,
+  });
+  
+  // Calculate dynamic counts
+  const unreadConversations = Array.isArray(conversations) ? conversations.filter((c: any) => !c.isRead).length : 0;
+  const pendingBookings = Array.isArray(bookings) ? bookings.filter((b: any) => b.status === 'pending').length : 0;
+  
+  const navigationItems = getNavigationItems(unreadConversations, pendingBookings);
 
   return (
     <>
@@ -120,7 +146,7 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
         {/* Navigation Menu */}
         <nav className="flex-1 p-4">
           <ul className="space-y-2">
-            {navigationItems.map((item) => {
+            {navigationItems.map((item: NavigationItem) => {
               const isActive = location === item.href;
               return (
                 <li key={item.href}>
