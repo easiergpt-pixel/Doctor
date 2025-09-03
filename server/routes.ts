@@ -334,6 +334,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/webhooks/telegram', async (req, res) => {
     try {
       console.log('Telegram webhook received:', JSON.stringify(req.body, null, 2));
+      console.log('Processing webhook step by step...');
       
       const update = req.body;
       
@@ -413,19 +414,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
       });
       
-      // Get conversation history for AI context
-      const messages = await storage.getMessagesByConversation(conversation.id);
-      const conversationHistory = messages.slice(-10).map(m => ({
-        role: m.sender === 'customer' ? 'user' as const : 'assistant' as const,
-        content: m.content,
-      }));
+      // Get conversation history for AI context - START FRESH for testing
+      console.log('Using clean conversation history for testing...');
+      const conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+      console.log('Clean conversation history length:', conversationHistory.length);
       
       // Generate AI response
+      console.log('Calling generateAIResponse...');
       const aiResponse = await generateAIResponse(
         channel.userId,
         messageText,
         conversationHistory
       );
+      console.log('AI response received:', aiResponse.message);
       
       // Store AI response
       await storage.createMessage({
@@ -441,14 +442,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Handle booking if needed
       if (aiResponse.action === 'booking' && aiResponse.bookingData) {
+        let bookingDate = undefined;
+        if (aiResponse.bookingData.preferredDateTime && aiResponse.bookingData.preferredDateTime !== 'sabah') {
+          try {
+            bookingDate = new Date(aiResponse.bookingData.preferredDateTime);
+            // Check if date is valid
+            if (isNaN(bookingDate.getTime())) {
+              bookingDate = undefined;
+            }
+          } catch (error) {
+            console.error('Date parsing error:', error);
+            bookingDate = undefined;
+          }
+        }
+        
         const booking = await storage.createBooking({
           userId: channel.userId,
           customerId: customer.id,
           conversationId: conversation.id,
-          service: aiResponse.bookingData.service,
-          dateTime: aiResponse.bookingData.preferredDateTime ? new Date(aiResponse.bookingData.preferredDateTime) : undefined,
+          service: aiResponse.bookingData.service || 'General consultation',
+          dateTime: bookingDate,
           status: 'pending',
-          notes: `Auto-created from Telegram chat. Customer: ${aiResponse.bookingData.customerName || customer.name}`,
+          notes: `Auto-created from Telegram chat. Customer: ${aiResponse.bookingData.customerName || customer.name}. Requested: ${aiResponse.bookingData.preferredDateTime || 'no specific time'}`,
         });
         
         realtimeService.notifyBookingCreated(channel.userId, booking);

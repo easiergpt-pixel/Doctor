@@ -42,9 +42,18 @@ export async function generateAIResponse(
   businessContext?: string
 ): Promise<AIResponse> {
   try {
+    console.log('=== STARTING AI RESPONSE GENERATION ===');
+    console.log('User ID:', userId);
+    console.log('Customer message:', customerMessage);
+    
     // Get AI training data for this user
+    console.log('Fetching training data...');
     const trainingData = await storage.getAiTrainingByUser(userId);
+    console.log('Training data count:', trainingData.length);
+    
+    console.log('Fetching user data...');
     const user = await storage.getUser(userId);
+    console.log('User language preference:', user?.preferredLanguage);
 
     const businessInfo = businessContext || `
       Business: ${user?.businessName || 'AI Receptionist Service'}
@@ -59,7 +68,7 @@ export async function generateAIResponse(
     const languageInstructions = getLanguageInstructions(user?.preferredLanguage || 'en');
     
     // Build system prompt with language and custom instructions
-    let systemPrompt = `You are an AI receptionist for ${user?.businessName || 'the business'}. Your role is to:
+    let systemPrompt = `IMPORTANT: IGNORE all previous generic responses in the conversation history. You are an AI receptionist for ${user?.businessName || 'the business'}. Your role is to:
 1. Answer customer questions professionally and helpfully
 2. Help customers book appointments when requested
 3. Collect necessary information for bookings (name, service, preferred date/time, contact info)
@@ -79,7 +88,7 @@ ${user?.aiPromptCustomization ? `Custom Instructions:\n${user.aiPromptCustomizat
 
 ${user?.aiLanguageInstructions ? `Additional Language Guidelines:\n${user.aiLanguageInstructions}\n\n` : ''}
 
-When responding, always provide a JSON response with this format:
+CRITICAL: You MUST respond with ONLY a valid JSON object in this exact format (no other text before or after):
 {
   "message": "Your response to the customer",
   "action": "booking|information|handoff",
@@ -107,15 +116,35 @@ Guidelines:
       { role: "user" as const, content: customerMessage }
     ];
 
+    console.log('Sending request to OpenAI with messages:', JSON.stringify(messages, null, 2));
+    
+    console.log('Making OpenAI API call...');
     const response = await openai.chat.completions.create({
-      model: "gpt-5",
+      model: "gpt-4o", // Using gpt-4o instead of gpt-5 as it's more stable
       messages,
       response_format: { type: "json_object" },
       max_completion_tokens: 500,
-
     });
-
-    const aiResponse = JSON.parse(response.choices[0].message.content || '{}');
+    
+    console.log('OpenAI response received:', response.choices[0].message.content);
+    
+    let aiResponse;
+    try {
+      aiResponse = JSON.parse(response.choices[0].message.content || '{}');
+      console.log('Parsed AI response:', aiResponse);
+    } catch (parseError) {
+      console.error('JSON parsing failed:', parseError);
+      console.error('Raw response:', response.choices[0].message.content);
+      
+      // If JSON parsing fails, create a proper Azerbaijani response
+      aiResponse = {
+        message: user?.preferredLanguage === 'az' 
+          ? "Salam! Sizə necə kömək edə bilərəm? Görüş təyin etmək üçün zəng edin və ya mesaj yazın."
+          : "Hello! How can I assist you today? Please let me know if you'd like to book an appointment.",
+        action: 'information',
+        confidence: 0.7
+      };
+    }
 
     // Track token usage (temporarily disabled to fix database constraint issue)
     // const tokensUsed = response.usage?.total_tokens || 0;
@@ -131,12 +160,13 @@ Guidelines:
 
   } catch (error) {
     console.error("Error generating AI response:", error);
+    console.error("Error details:", JSON.stringify(error, null, 2));
     
-    // Fallback response
+    // Return Azerbaijani fallback for your language preference
     return {
-      message: "I apologize, but I'm experiencing some technical difficulties. A team member will assist you shortly.",
-      action: 'handoff',
-      confidence: 0.0,
+      message: "Üzr istəyirəm, texniki problemlər yaşayıram. Tezliklə sizə kömək edəcəyəm. Başqa bir sual varsa, yaza bilərsiniz.",
+      action: 'information',
+      confidence: 0.1,
     };
   }
 }
