@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { reminderService } from "./services/reminderService";
+import { notifyCustomerOfBookingAction } from "./services/notificationService";
 import { generateAIResponse } from "./services/openai";
 import { RealtimeService } from "./services/websocket";
 import { insertMessageSchema, insertBookingSchema, insertChannelSchema, insertAiTrainingSchema } from "@shared/schema";
@@ -852,7 +853,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const booking = await storage.updateBookingWithOwnerAction(id, action, comment);
       
-      // TODO: Send AI response to customer based on owner action
+      // Send AI response to customer based on owner action
+      try {
+        const notificationSent = await notifyCustomerOfBookingAction(id, action, comment);
+        console.log(`Notification sent to customer: ${notificationSent}`);
+      } catch (error) {
+        console.error('Error sending notification to customer:', error);
+        // Don't fail the request if notification fails
+      }
       
       res.json(booking);
     } catch (error) {
