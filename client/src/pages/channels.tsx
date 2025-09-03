@@ -38,6 +38,8 @@ export default function Channels() {
   const { isAuthenticated, isLoading } = useAuth();
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [configDialogOpen, setConfigDialogOpen] = useState(false);
+  const [selectedChannel, setSelectedChannel] = useState<any>(null);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -91,6 +93,50 @@ export default function Channels() {
 
   const onSubmit = (data: z.infer<typeof channelFormSchema>) => {
     createChannelMutation.mutate(data);
+  };
+
+  const handleConfigureChannel = (channel: any) => {
+    setSelectedChannel(channel);
+    setConfigDialogOpen(true);
+  };
+
+  const getConfigurationSteps = (channelType: string) => {
+    switch (channelType) {
+      case 'whatsapp':
+        return [
+          'Go to WhatsApp Business API dashboard',
+          'Create a webhook endpoint',
+          'Set webhook URL to: [Your App URL]/api/webhooks/whatsapp',
+          'Add phone number verification',
+          'Test the connection'
+        ];
+      case 'facebook':
+        return [
+          'Go to Facebook Developers console',
+          'Create a new app for Messenger',
+          'Set up webhook subscriptions',
+          'Add page access tokens',
+          'Configure webhook URL: [Your App URL]/api/webhooks/facebook'
+        ];
+      case 'instagram':
+        return [
+          'Connect Instagram Business account',
+          'Set up Instagram Messaging API',
+          'Configure webhook endpoint',
+          'Add necessary permissions',
+          'Test direct message functionality'
+        ];
+      case 'website':
+        return [
+          'Copy the embed code below',
+          'Paste it before the closing </body> tag on your website',
+          'Customize the widget appearance',
+          'Test the chat functionality',
+          'Configure auto-responses'
+        ];
+      default:
+        return ['Configuration steps not available'];
+    }
   };
 
   const getChannelIcon = (type: string) => {
@@ -217,6 +263,109 @@ export default function Channels() {
                   </Form>
                 </DialogContent>
               </Dialog>
+
+              {/* Configuration Dialog */}
+              <Dialog open={configDialogOpen} onOpenChange={setConfigDialogOpen}>
+                <DialogContent className="max-w-2xl">
+                  <DialogHeader>
+                    <DialogTitle>
+                      Configure {selectedChannel?.name}
+                    </DialogTitle>
+                    <p className="text-muted-foreground">
+                      Follow these steps to connect your {selectedChannel?.type?.replace('_', ' ')} channel
+                    </p>
+                  </DialogHeader>
+                  <div className="space-y-6">
+                    {selectedChannel && (
+                      <>
+                        <div className="flex items-center space-x-3 p-4 bg-muted/30 rounded-lg">
+                          {getChannelIcon(selectedChannel.type)}
+                          <div>
+                            <h3 className="font-semibold">{selectedChannel.name}</h3>
+                            <p className="text-sm text-muted-foreground capitalize">
+                              {selectedChannel.type.replace('_', ' ')} Channel
+                            </p>
+                          </div>
+                        </div>
+
+                        <div>
+                          <h4 className="font-semibold mb-3">Configuration Steps:</h4>
+                          <ol className="space-y-3">
+                            {getConfigurationSteps(selectedChannel.type).map((step, index) => (
+                              <li key={index} className="flex items-start space-x-3">
+                                <span className="flex-shrink-0 w-6 h-6 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-sm font-medium">
+                                  {index + 1}
+                                </span>
+                                <span className="text-sm">{step}</span>
+                              </li>
+                            ))}
+                          </ol>
+                        </div>
+
+                        {selectedChannel.type === 'website' && (
+                          <div className="space-y-3">
+                            <h4 className="font-semibold">Website Embed Code:</h4>
+                            <div className="p-4 bg-muted rounded-lg">
+                              <code className="text-sm text-foreground">
+                                {`<script>
+  (function() {
+    var chatWidget = document.createElement('div');
+    chatWidget.id = 'ai-receptionist-widget';
+    chatWidget.innerHTML = '<iframe src="${window.location.origin}/widget/${selectedChannel.id}" width="350" height="500" frameborder="0"></iframe>';
+    chatWidget.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:9999;';
+    document.body.appendChild(chatWidget);
+  })();
+</script>`}
+                              </code>
+                            </div>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => {
+                                navigator.clipboard.writeText(`<script>
+  (function() {
+    var chatWidget = document.createElement('div');
+    chatWidget.id = 'ai-receptionist-widget';
+    chatWidget.innerHTML = '<iframe src="${window.location.origin}/widget/${selectedChannel.id}" width="350" height="500" frameborder="0"></iframe>';
+    chatWidget.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:9999;';
+    document.body.appendChild(chatWidget);
+  })();
+</script>`);
+                                toast({
+                                  title: "Copied!",
+                                  description: "Embed code copied to clipboard",
+                                });
+                              }}
+                            >
+                              Copy Embed Code
+                            </Button>
+                          </div>
+                        )}
+
+                        <div className="flex justify-end space-x-2">
+                          <Button 
+                            variant="outline" 
+                            onClick={() => setConfigDialogOpen(false)}
+                          >
+                            Close
+                          </Button>
+                          <Button 
+                            onClick={() => {
+                              toast({
+                                title: "Configuration Saved",
+                                description: `${selectedChannel.name} channel settings have been updated`,
+                              });
+                              setConfigDialogOpen(false);
+                            }}
+                          >
+                            Save Configuration
+                          </Button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
 
             {/* Channels Grid */}
@@ -282,6 +431,7 @@ export default function Channels() {
                               variant="outline" 
                               size="sm" 
                               className="flex-1"
+                              onClick={() => handleConfigureChannel(channel)}
                               data-testid={`button-configure-${channel.id}`}
                             >
                               <Settings className="h-4 w-4 mr-2" />
