@@ -2,11 +2,32 @@
 
 ## Overview
 
-This is a full-stack AI receptionist platform that enables businesses to automate customer communications across multiple channels (WhatsApp, Facebook, Instagram, website chat). The system provides intelligent conversation handling, appointment booking capabilities, customer management, and real-time analytics. Built with modern web technologies, it features a responsive dashboard for business owners to monitor and manage their AI receptionist operations.
+This is a full-stack AI receptionist platform that enables businesses to automate customer communications across multiple channels (WhatsApp, Facebook, Instagram, website chat, Telegram). The system provides intelligent conversation handling, appointment booking capabilities, customer management, and real-time analytics. Built with modern web technologies, it features a responsive dashboard for business owners to monitor and manage their AI receptionist operations.
 
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
+
+## Recent Progress (September 2025)
+
+### Completed Features
+- ✅ **Complete Booking Confirmation Workflow**: AI checks owner availability, proposes time slots, customer chooses, owner approves/rejects
+- ✅ **Schedule Settings System**: Weekly availability management, custom time slots, blackout dates
+- ✅ **Booking Approval Interface**: Review pending bookings with full customer context and actions
+- ✅ **AI Customer Notifications**: Automated responses sent to customers via original channels (Telegram working)
+- ✅ **Enhanced UI Features**: Reschedule dialog with date/time picker, dark mode toggle, improved sidebar navigation
+- ✅ **Multilingual Support**: Full Azerbaijani language support with cultural context
+
+### Key Workflows Implemented
+1. **Customer Booking Flow**: Customer writes to AI → AI checks available slots → AI proposes options → Customer chooses → Owner gets notification
+2. **Owner Approval Flow**: Owner reviews booking in Approvals page → Approve/Reject/Reschedule with comments → AI automatically notifies customer
+3. **Schedule Management**: Set weekly availability, manage time slots, add blackout dates
+
+### Technical Achievements
+- Complete notification service with Telegram API integration
+- Real-time booking status updates
+- Smart availability checking with existing bookings consideration
+- Comprehensive booking confirmation database schema
 
 ## System Architecture
 
