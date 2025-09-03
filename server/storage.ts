@@ -173,23 +173,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getConversation(id: string): Promise<Conversation | undefined> {
-    const [result] = await db
-      .select({
-        id: conversations.id,
-        userId: conversations.userId,
-        customerId: conversations.customerId,
-        channel: channels.type, // Use channel type instead of UUID
-        channelName: channels.name,
-        status: conversations.status,
-        createdAt: conversations.createdAt,
-        updatedAt: conversations.updatedAt,
-        lastMessageAt: conversations.lastMessageAt,
-      })
-      .from(conversations)
-      .leftJoin(channels, eq(conversations.channel, channels.id))
-      .where(eq(conversations.id, id));
-    
-    return result as any;
+    const [conversation] = await db.select().from(conversations).where(eq(conversations.id, id));
+    return conversation;
   }
 
   async getConversationById(id: string): Promise<Conversation | undefined> {
@@ -197,45 +182,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getConversationsByUser(userId: string): Promise<Conversation[]> {
-    const result = await db
-      .select({
-        id: conversations.id,
-        userId: conversations.userId,
-        customerId: conversations.customerId,
-        channel: channels.type, // Use channel type instead of UUID
-        channelName: channels.name,
-        status: conversations.status,
-        createdAt: conversations.createdAt,
-        updatedAt: conversations.updatedAt,
-        lastMessageAt: conversations.lastMessageAt,
-      })
+    return await db
+      .select()
       .from(conversations)
-      .leftJoin(channels, eq(conversations.channel, channels.id))
       .where(eq(conversations.userId, userId))
       .orderBy(desc(conversations.lastMessageAt));
-    
-    return result as any[];
   }
 
   async getActiveConversations(userId: string): Promise<Conversation[]> {
-    const result = await db
-      .select({
-        id: conversations.id,
-        userId: conversations.userId,
-        customerId: conversations.customerId,
-        channel: channels.type, // Use channel type instead of UUID
-        channelName: channels.name,
-        status: conversations.status,
-        createdAt: conversations.createdAt,
-        updatedAt: conversations.updatedAt,
-        lastMessageAt: conversations.lastMessageAt,
-      })
+    return await db
+      .select()
       .from(conversations)
-      .leftJoin(channels, eq(conversations.channel, channels.id))
       .where(and(eq(conversations.userId, userId), eq(conversations.status, "active")))
       .orderBy(desc(conversations.lastMessageAt));
-    
-    return result as any[];
   }
 
   async getActiveConversationByCustomer(customerId: string): Promise<Conversation | undefined> {
@@ -339,8 +298,7 @@ export class DatabaseStorage implements IStorage {
 
   async updateChannelConfig(id: string, config: any): Promise<void> {
     await db.update(channels).set({ 
-      config: config,
-      updatedAt: new Date() 
+      config: config
     }).where(eq(channels.id, id));
   }
 
@@ -386,9 +344,9 @@ export class DatabaseStorage implements IStorage {
       await db
         .update(usage)
         .set({
-          tokensUsed: existingUsage.tokensUsed + tokensUsed,
-          messagesProcessed: existingUsage.messagesProcessed + messagesProcessed,
-          cost: (parseFloat(existingUsage.cost) + parseFloat(cost)).toFixed(4),
+          tokensUsed: (existingUsage.tokensUsed || 0) + tokensUsed,
+          messagesProcessed: (existingUsage.messagesProcessed || 0) + messagesProcessed,
+          cost: (parseFloat(existingUsage.cost || '0') + parseFloat(cost)).toFixed(4),
         })
         .where(and(eq(usage.userId, userId), sql`DATE(${usage.date}) = DATE(${today})`));
     } else {

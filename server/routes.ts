@@ -57,7 +57,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const conversations = await storage.getConversationsByUser(userId);
-      res.json(conversations);
+      
+      // Enrich conversations with channel information
+      const enrichedConversations = await Promise.all(conversations.map(async (conv) => {
+        const channel = await storage.getChannel(conv.channel);
+        return {
+          ...conv,
+          channelName: channel?.name || 'Unknown',
+          channelType: channel?.type || 'unknown',
+          channel: channel?.type || conv.channel // Use channel type for display
+        };
+      }));
+      
+      res.json(enrichedConversations);
     } catch (error) {
       console.error("Error fetching conversations:", error);
       res.status(500).json({ message: "Failed to fetch conversations" });
@@ -68,10 +80,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const conversations = await storage.getActiveConversations(userId);
-      res.json(conversations);
+      
+      // Enrich conversations with channel information
+      const enrichedConversations = await Promise.all(conversations.map(async (conv) => {
+        const channel = await storage.getChannel(conv.channel);
+        return {
+          ...conv,
+          channelName: channel?.name || 'Unknown',
+          channelType: channel?.type || 'unknown',
+          channel: channel?.type || conv.channel // Use channel type for display
+        };
+      }));
+      
+      res.json(enrichedConversations);
     } catch (error) {
       console.error("Error fetching active conversations:", error);
       res.status(500).json({ message: "Failed to fetch active conversations" });
+    }
+  });
+
+  // Get single conversation
+  app.get('/api/conversations/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user.claims.sub;
+      
+      const conversation = await storage.getConversation(id);
+      if (!conversation || conversation.userId !== userId) {
+        return res.status(404).json({ message: 'Conversation not found' });
+      }
+      
+      // Enrich with channel information
+      const channel = await storage.getChannel(conversation.channel);
+      const enrichedConversation = {
+        ...conversation,
+        channelName: channel?.name || 'Unknown',
+        channelType: channel?.type || 'unknown',
+        channel: channel?.type || conversation.channel // Use channel type for display
+      };
+      
+      res.json(enrichedConversation);
+    } catch (error) {
+      console.error('Error fetching conversation:', error);
+      res.status(500).json({ message: 'Failed to fetch conversation' });
     }
   });
 
