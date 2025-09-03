@@ -1,0 +1,48 @@
+[vite] connecting...
+DOMException {}
+stack: "SyntaxError: Failed to construct 'WebSocket': The URL 'wss://localhost:undefined/?token=skY0uAldecKS' is invalid.↵ at new t (https://e1516723-a448-4eea-bbb2-8cd8f3fca295-00-kyauhm6l58k7.spock.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:218737)↵ at setupWebSocket (https://e1516723-a448-4eea-bbb2-8cd8f3fca295-00-kyauhm6l58k7.spock.replit.dev/@vite/client:536:19)↵ at fallback (https://e1516723-a448-4eea-bbb2-8cd8f3fca295-00-kyauhm6l58k7.spock.replit.dev/@vite/client:509:16)↵ at WebSocket.<anonymous> (https://e1516723-a448-4eea-bbb2-8cd8f3fca295-00-kyauhm6l58k7.spock.replit.dev/@vite/client:555:7)"
+get stack: ƒ ()
+set stack: ƒ ()
+[[Prototype]]: DOMException
+
+Warning: validateDOMNesting(...): <a> cannot appear as a descendant of &lt;a&gt;.
+    at a
+    at a
+    at https://e1516723-a448-4eea-bbb2-8cd8f3fca295-00-kyauhm6l58k7.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=34e3c5a7:337:18
+    at li
+    at ul
+    at nav
+    at div
+    at aside
+    at Sidebar (https://e1516723-a448-4eea-bbb2-8cd8f3fca295-00-kyauhm6l58k7.spock.replit.dev/src/components/layout/sidebar.tsx:89:22)
+    at div
+    at Dashboard (https://e1516723-a448-4eea-bbb2-8cd8f3fca295-00-kyauhm6l58k7.spock.replit.dev/src/pages/dashboard.tsx:30:21)
+    at Route (https://e1516723-a448-4eea-bbb2-8cd8f3fca295-00-kyauhm6l58k7.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=34e3c5a7:323:16)
+    at Switch (https://e1516723-a448-4eea-bbb2-8cd8f3fca295-00-kyauhm6l58k7.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=34e3c5a7:379:17)
+    at Router (https://e1516723-a448-4eea-bbb2-8cd8f3fca295-00-kyauhm6l58k7.spock.replit.dev/src/App.tsx?v=1uOIDSwLID067OvyOugEm:34:42)
+    at Provider (https://e1516723-a448-4eea-bbb2-8cd8f3fca295-00-kyauhm6l58k7.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-OXZDJRWN.js?v=34e3c5a7:38:15)
+    at TooltipProvider (https://e1516723-a448-4eea-bbb2-8cd8f3fca295-00-kyauhm6l58k7.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=34e3c5a7:58:5)
+    at QueryClientProvider (https://e1516723-a448-4eea-bbb2-8cd8f3fca295-00-kyauhm6l58k7.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=34e3c5a7:2805:3)
+    at App
+at a
+at a
+at https://e1516723-a448-4eea-bbb2-8cd8f3fca295-00-kyauhm6l58k7.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=34e3c5a7:337:18
+at li
+at ul
+at nav
+at div
+at aside
+at Sidebar (https://e1516723-a448-4eea-bbb2-8cd8f3fca295-00-kyauhm6l58k7.spock.replit.dev/src/components/layout/sidebar.tsx:89:22)
+at div
+at Dashboard (https://e1516723-a448-4eea-bbb2-8cd8f3fca295-00-kyauhm6l58k7.spock.replit.dev/src/pages/dashboard.tsx:30:21)
+at Route (https://e1516723-a448-4eea-bbb2-8cd8f3fca295-00-kyauhm6l58k7.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=34e3c5a7:323:16)
+at Switch (https://e1516723-a448-4eea-bbb2-8cd8f3fca295-00-kyauhm6l58k7.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=34e3c5a7:379:17)
+at Router (https://e1516723-a448-4eea-bbb2-8cd8f3fca295-00-kyauhm6l58k7.spock.replit.dev/src/App.tsx?v=1uOIDSwLID067OvyOugEm:34:42)
+at Provider (https://e1516723-a448-4eea-bbb2-8cd8f3fca295-00-kyauhm6l58k7.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-OXZDJRWN.js?v=34e3c5a7:38:15)
+at TooltipProvider (https://e1516723-a448-4eea-bbb2-8cd8f3fca295-00-kyauhm6l58k7.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=34e3c5a7:58:5)
+at QueryClientProvider (https://e1516723-a448-4eea-bbb2-8cd8f3fca295-00-kyauhm6l58k7.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=34e3c5a7:2805:3)
+at App
+at t.value (https://e1516723-a448-4eea-bbb2-8cd8f3fca295-00-kyauhm6l58k7.spock.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:17465)
+at new t (https://e1516723-a448-4eea-bbb2-8cd8f3fca295-00-kyauhm6l58k7.spock.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:12630)
+at t.value (https://e1516723-a448-4eea-bbb2-8cd8f3fca295-00-kyauhm6l58k7.spock.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:32766)
+at https://e1516723-a448-4eea-bbb2-8cd8f3fca295-00-kyauhm6l58k7.spock.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:34400

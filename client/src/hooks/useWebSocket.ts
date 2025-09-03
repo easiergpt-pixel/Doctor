@@ -19,7 +19,7 @@ export function useWebSocket() {
   };
 
   useEffect(() => {
-    if (!isAuthenticated || !user?.id) {
+    if (!isAuthenticated || !(user as any)?.id) {
       return;
     }
 
@@ -36,7 +36,7 @@ export function useWebSocket() {
       // Authenticate with user ID
       ws.send(JSON.stringify({
         type: 'auth',
-        userId: user.id,
+        userId: (user as any).id,
       }));
     };
 
@@ -66,7 +66,7 @@ export function useWebSocket() {
         ws.close();
       }
     };
-  }, [isAuthenticated, user?.id]);
+  }, [isAuthenticated, (user as any)?.id]);
 
   return {
     isConnected,

@@ -98,9 +98,9 @@ export default function Sidebar() {
               return (
                 <li key={item.href}>
                   <Link href={item.href}>
-                    <a 
+                    <span 
                       className={cn(
-                        "flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors",
+                        "flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors cursor-pointer",
                         isActive 
                           ? "bg-accent text-accent-foreground" 
                           : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
@@ -117,7 +117,7 @@ export default function Sidebar() {
                           {item.badge}
                         </Badge>
                       )}
-                    </a>
+                    </span>
                   </Link>
                 </li>
               );
@@ -134,9 +134,9 @@ export default function Sidebar() {
                 return (
                   <li key={item.href}>
                     <Link href={item.href}>
-                      <a 
+                      <span 
                         className={cn(
-                          "flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors",
+                          "flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors cursor-pointer",
                           isActive 
                             ? "bg-accent text-accent-foreground" 
                             : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
@@ -145,7 +145,7 @@ export default function Sidebar() {
                       >
                         <item.icon className="mr-3 h-4 w-4" />
                         {item.title}
-                      </a>
+                      </span>
                     </Link>
                   </li>
                 );
@@ -159,15 +159,15 @@ export default function Sidebar() {
           <div className="flex items-center">
             <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
               <span className="text-primary-foreground text-sm font-medium">
-                {user?.businessName?.[0] || user?.firstName?.[0] || "U"}
+                {(user as any)?.businessName?.[0] || (user as any)?.firstName?.[0] || "U"}
               </span>
             </div>
             <div className="ml-3 flex-1">
               <p className="text-sm font-medium text-foreground" data-testid="text-business-name">
-                {user?.businessName || `${user?.firstName || "User"}'s Business`}
+                {(user as any)?.businessName || `${(user as any)?.firstName || "User"}'s Business`}
               </p>
               <p className="text-xs text-muted-foreground">
-                {user?.subscriptionStatus === 'active' ? 'Pro Plan' : 'Free Trial'}
+                {(user as any)?.subscriptionStatus === 'active' ? 'Pro Plan' : 'Free Trial'}
               </p>
             </div>
             <Button variant="ghost" size="sm" className="p-0 h-auto">
