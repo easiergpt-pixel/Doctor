@@ -13,6 +13,23 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { MessageSquare, User, ArrowLeft, Send } from "lucide-react";
 import { format } from "date-fns";
 
+interface Conversation {
+  id: string;
+  customerId: string;
+  channel: string;
+  status: string;
+  userId: string;
+  createdAt: string;
+}
+
+interface Message {
+  id: string;
+  conversationId: string;
+  content: string;
+  sender: 'customer' | 'ai';
+  createdAt: string;
+}
+
 export default function ConversationDetail() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading } = useAuth();
@@ -35,12 +52,12 @@ export default function ConversationDetail() {
     }
   }, [isAuthenticated, isLoading, toast]);
 
-  const { data: conversation, isLoading: conversationLoading } = useQuery({
+  const { data: conversation, isLoading: conversationLoading } = useQuery<Conversation>({
     queryKey: [`/api/conversations/${conversationId}`],
     enabled: isAuthenticated && !!conversationId,
   });
 
-  const { data: messages, isLoading: messagesLoading } = useQuery({
+  const { data: messages, isLoading: messagesLoading } = useQuery<Message[]>({
     queryKey: [`/api/conversations/${conversationId}/messages`],
     enabled: isAuthenticated && !!conversationId,
   });
@@ -72,20 +89,7 @@ export default function ConversationDetail() {
       
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header 
-          title={
-            <div className="flex items-center space-x-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setLocation("/conversations")}
-                data-testid="button-back-to-conversations"
-              >
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back
-              </Button>
-              <span>Conversation Details</span>
-            </div>
-          }
+          title="Conversation Details"
           subtitle={`Customer ID: ${conversation?.customerId?.slice(0, 8) || "Unknown"}`}
         />
         
@@ -116,22 +120,22 @@ export default function ConversationDetail() {
                     </div>
                     <div>
                       <h2 className="text-xl font-semibold" data-testid="text-conversation-title">
-                        Conversation {conversation.id.slice(0, 8)}
+                        Conversation {conversation?.id?.slice(0, 8) || "Unknown"}
                       </h2>
                       <p className="text-muted-foreground">
-                        Customer: {conversation.customerId?.slice(0, 8) || "Unknown"}
+                        Customer: {conversation?.customerId?.slice(0, 8) || "Unknown"}
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center space-x-3">
                     <Badge 
-                      variant={conversation.channel === 'whatsapp' ? 'default' : 
-                             conversation.channel === 'website' ? 'secondary' : 'outline'}
+                      variant={conversation?.channel === 'whatsapp' ? 'default' : 
+                             conversation?.channel === 'website' ? 'secondary' : 'outline'}
                     >
-                      {conversation.channel}
+                      <span className="capitalize">{conversation?.channel || 'unknown'}</span>
                     </Badge>
-                    <Badge variant={conversation.status === 'active' ? 'default' : 'secondary'}>
-                      {conversation.status}
+                    <Badge variant={conversation?.status === 'active' ? 'default' : 'secondary'}>
+                      {conversation?.status || 'unknown'}
                     </Badge>
                   </div>
                 </div>
