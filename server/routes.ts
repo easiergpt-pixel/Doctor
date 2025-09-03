@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
+import { reminderService } from "./services/reminderService";
 import { generateAIResponse } from "./services/openai";
 import { RealtimeService } from "./services/websocket";
 import { insertMessageSchema, insertBookingSchema, insertChannelSchema, insertAiTrainingSchema } from "@shared/schema";
@@ -272,6 +273,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const booking = await storage.createBooking(bookingData);
       realtimeService.notifyBookingCreated(userId, booking);
+      
+      // Automatically create reminders for the new booking
+      if (booking.id) {
+        await reminderService.createRemindersForBooking(booking.id);
+      }
       
       res.json(booking);
     } catch (error) {
@@ -649,6 +655,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to fetch subscription status" });
     }
   });
+
+  // Reminder preferences routes
+  app.get('/api/reminder-preferences', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const preferences = await storage.getUserReminderPreferences(userId);
+      res.json(preferences || {
+        emailReminders: true,
+        smsReminders: false,
+        whatsappReminders: false,
+        reminderTiming: ['24h', '1h'],
+        language: 'en'
+      });
+    } catch (error) {
+      console.error('Error fetching reminder preferences:', error);
+      res.status(500).json({ message: 'Failed to fetch reminder preferences' });
+    }
+  });
+
+  app.post('/api/reminder-preferences', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const preferences = await storage.upsertUserReminderPreferences({
+        ...req.body,
+        userId,
+      });
+      res.json(preferences);
+    } catch (error) {
+      console.error('Error saving reminder preferences:', error);
+      res.status(500).json({ message: 'Failed to save reminder preferences' });
+    }
+  });
+
+  // Get booking reminders for user
+  app.get('/api/reminders', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const reminders = await storage.getBookingRemindersByUser(userId);
+      res.json(reminders);
+    } catch (error) {
+      console.error('Error fetching reminders:', error);
+      res.status(500).json({ message: 'Failed to fetch reminders' });
+    }
+  });
+
+  // Start reminder processing scheduler
+  reminderService.startReminderScheduler();
 
   return httpServer;
 }

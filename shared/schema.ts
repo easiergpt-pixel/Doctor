@@ -213,6 +213,40 @@ export const insertUsageSchema = createInsertSchema(usage).omit({
 // Types
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
+
+// Booking reminders table
+export const bookingReminders = pgTable("booking_reminders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  bookingId: varchar("booking_id").references(() => bookings.id, { onDelete: "cascade" }).notNull(),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  reminderType: varchar("reminder_type").notNull(), // 'email', 'sms', 'whatsapp'
+  scheduledTime: timestamp("scheduled_time").notNull(),
+  messageContent: text("message_content").notNull(),
+  status: varchar("status").default("pending").notNull(), // 'pending', 'sent', 'failed', 'cancelled'
+  sentAt: timestamp("sent_at"),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// User reminder preferences
+export const userReminderPreferences = pgTable("user_reminder_preferences", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }).notNull().unique(),
+  emailReminders: boolean("email_reminders").default(true).notNull(),
+  smsReminders: boolean("sms_reminders").default(false).notNull(),
+  whatsappReminders: boolean("whatsapp_reminders").default(false).notNull(),
+  reminderTiming: jsonb("reminder_timing").default(sql`'["24h", "1h"]'::jsonb`).notNull(), // Array of timing like "24h", "1h", "30min"
+  customMessage: text("custom_message"),
+  language: varchar("language").default("en").notNull(), // 'en', 'az', 'ru'
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export type BookingReminder = typeof bookingReminders.$inferSelect;
+export type InsertBookingReminder = typeof bookingReminders.$inferInsert;
+export type UserReminderPreferences = typeof userReminderPreferences.$inferSelect;
+export type InsertUserReminderPreferences = typeof userReminderPreferences.$inferInsert;
 export type InsertCustomer = z.infer<typeof insertCustomerSchema>;
 export type Customer = typeof customers.$inferSelect;
 export type InsertConversation = z.infer<typeof insertConversationSchema>;

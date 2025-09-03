@@ -7,6 +7,8 @@ import {
   channels,
   aiTraining,
   usage,
+  bookingReminders,
+  userReminderPreferences,
   type User,
   type UpsertUser,
   type InsertCustomer,
@@ -23,6 +25,10 @@ import {
   type AiTraining,
   type InsertUsage,
   type Usage,
+  type BookingReminder,
+  type InsertBookingReminder,
+  type UserReminderPreferences,
+  type InsertUserReminderPreferences,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, sql } from "drizzle-orm";
@@ -77,6 +83,14 @@ export interface IStorage {
   createUsage(usage: InsertUsage): Promise<Usage>;
   getTodaysUsage(userId: string): Promise<Usage | undefined>;
   updateUsage(userId: string, tokensUsed: number, messagesProcessed: number, cost: string): Promise<void>;
+
+  // Reminder operations
+  createBookingReminder(reminder: InsertBookingReminder): Promise<BookingReminder>;
+  getBookingRemindersByUser(userId: string): Promise<BookingReminder[]>;
+  getPendingReminders(): Promise<BookingReminder[]>;
+  updateReminderStatus(id: string, status: string, sentAt?: Date, errorMessage?: string): Promise<void>;
+  getUserReminderPreferences(userId: string): Promise<UserReminderPreferences | undefined>;
+  upsertUserReminderPreferences(preferences: InsertUserReminderPreferences): Promise<UserReminderPreferences>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -361,6 +375,67 @@ export class DatabaseStorage implements IStorage {
           cost,
         });
     }
+  }
+
+  // Reminder operations
+  async createBookingReminder(reminder: InsertBookingReminder): Promise<BookingReminder> {
+    const [newReminder] = await db.insert(bookingReminders).values(reminder).returning();
+    return newReminder;
+  }
+
+  async getBookingRemindersByUser(userId: string): Promise<BookingReminder[]> {
+    return await db
+      .select()
+      .from(bookingReminders)
+      .where(eq(bookingReminders.userId, userId))
+      .orderBy(desc(bookingReminders.scheduledTime));
+  }
+
+  async getPendingReminders(): Promise<BookingReminder[]> {
+    const now = new Date();
+    return await db
+      .select()
+      .from(bookingReminders)
+      .where(and(
+        eq(bookingReminders.status, 'pending'),
+        sql`${bookingReminders.scheduledTime} <= ${now}`
+      ))
+      .orderBy(bookingReminders.scheduledTime);
+  }
+
+  async updateReminderStatus(id: string, status: string, sentAt?: Date, errorMessage?: string): Promise<void> {
+    await db
+      .update(bookingReminders)
+      .set({
+        status,
+        sentAt,
+        errorMessage,
+        updatedAt: new Date(),
+      })
+      .where(eq(bookingReminders.id, id));
+  }
+
+  async getUserReminderPreferences(userId: string): Promise<UserReminderPreferences | undefined> {
+    const [preferences] = await db
+      .select()
+      .from(userReminderPreferences)
+      .where(eq(userReminderPreferences.userId, userId));
+    return preferences;
+  }
+
+  async upsertUserReminderPreferences(preferences: InsertUserReminderPreferences): Promise<UserReminderPreferences> {
+    const [result] = await db
+      .insert(userReminderPreferences)
+      .values(preferences)
+      .onConflictDoUpdate({
+        target: userReminderPreferences.userId,
+        set: {
+          ...preferences,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return result;
   }
 }
 

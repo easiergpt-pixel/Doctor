@@ -58,6 +58,11 @@ const navigationItems = [
     href: "/ai-settings",
     icon: Brain,
   },
+  {
+    title: "Reminders",
+    href: "/reminder-settings",
+    icon: Bell,
+  },
 ];
 
 const accountItems = [

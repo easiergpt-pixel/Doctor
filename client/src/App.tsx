@@ -14,6 +14,7 @@ import Bookings from "@/pages/bookings";
 import Customers from "@/pages/customers";
 import Billing from "@/pages/billing";
 import AISettings from "@/pages/ai-settings";
+import ReminderSettings from "@/pages/reminder-settings";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -32,6 +33,7 @@ function Router() {
           <Route path="/customers" component={Customers} />
           <Route path="/billing" component={Billing} />
           <Route path="/ai-settings" component={AISettings} />
+          <Route path="/reminder-settings" component={ReminderSettings} />
         </>
       )}
       <Route component={NotFound} />
