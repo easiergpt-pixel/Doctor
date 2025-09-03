@@ -17,6 +17,8 @@ import AISettings from "@/pages/ai-settings";
 import ReminderSettings from "@/pages/reminder-settings";
 import Analytics from "@/pages/analytics";
 import Notifications from "@/pages/notifications";
+import ScheduleSettings from "@/pages/schedule-settings";
+import BookingApproval from "@/pages/booking-approval";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -38,6 +40,8 @@ function Router() {
           <Route path="/reminder-settings" component={ReminderSettings} />
           <Route path="/analytics" component={Analytics} />
           <Route path="/notifications" component={Notifications} />
+          <Route path="/schedule-settings" component={ScheduleSettings} />
+          <Route path="/booking-approval" component={BookingApproval} />
         </>
       )}
       <Route component={NotFound} />

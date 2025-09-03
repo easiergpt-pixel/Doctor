@@ -732,6 +732,135 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Schedule management routes
+  app.get('/api/schedule-slots', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const slots = await storage.getScheduleSlots(userId);
+      res.json(slots);
+    } catch (error) {
+      console.error("Error fetching schedule slots:", error);
+      res.status(500).json({ message: "Failed to fetch schedule slots" });
+    }
+  });
+
+  app.post('/api/schedule-slots', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const slotData = { ...req.body, userId };
+      
+      const slot = await storage.createScheduleSlot(slotData);
+      res.json(slot);
+    } catch (error) {
+      console.error("Error creating schedule slot:", error);
+      res.status(500).json({ message: "Failed to create schedule slot" });
+    }
+  });
+
+  app.patch('/api/schedule-slots/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const slotData = req.body;
+      
+      const slot = await storage.updateScheduleSlot(id, slotData);
+      res.json(slot);
+    } catch (error) {
+      console.error("Error updating schedule slot:", error);
+      res.status(500).json({ message: "Failed to update schedule slot" });
+    }
+  });
+
+  app.delete('/api/schedule-slots/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      
+      await storage.deleteScheduleSlot(id);
+      res.json({ message: "Schedule slot deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting schedule slot:", error);
+      res.status(500).json({ message: "Failed to delete schedule slot" });
+    }
+  });
+
+  // Special availability routes
+  app.get('/api/special-availability', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const special = await storage.getSpecialAvailability(userId);
+      res.json(special);
+    } catch (error) {
+      console.error("Error fetching special availability:", error);
+      res.status(500).json({ message: "Failed to fetch special availability" });
+    }
+  });
+
+  app.post('/api/special-availability', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const specialData = { ...req.body, userId, date: new Date(req.body.date) };
+      
+      const special = await storage.createSpecialAvailability(specialData);
+      res.json(special);
+    } catch (error) {
+      console.error("Error creating special availability:", error);
+      res.status(500).json({ message: "Failed to create special availability" });
+    }
+  });
+
+  app.delete('/api/special-availability/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      
+      await storage.deleteSpecialAvailability(id);
+      res.json({ message: "Special availability deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting special availability:", error);
+      res.status(500).json({ message: "Failed to delete special availability" });
+    }
+  });
+
+  // Available time slots endpoint for AI
+  app.get('/api/available-slots', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { date, duration } = req.query;
+      
+      if (!date) {
+        return res.status(400).json({ message: "Date parameter is required" });
+      }
+      
+      const requestDate = new Date(date as string);
+      const slotDuration = duration ? parseInt(duration as string) : 30;
+      
+      const availableSlots = await storage.getAvailableTimeSlots(userId, requestDate, slotDuration);
+      res.json(availableSlots);
+    } catch (error) {
+      console.error("Error fetching available slots:", error);
+      res.status(500).json({ message: "Failed to fetch available slots" });
+    }
+  });
+
+  // Booking confirmation workflow routes
+  app.patch('/api/bookings/:id/owner-action', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { action, comment } = req.body;
+      
+      if (!action || !['approve', 'reject', 'reschedule'].includes(action)) {
+        return res.status(400).json({ message: "Valid action is required (approve, reject, reschedule)" });
+      }
+      
+      const booking = await storage.updateBookingWithOwnerAction(id, action, comment);
+      
+      // TODO: Send AI response to customer based on owner action
+      
+      res.json(booking);
+    } catch (error) {
+      console.error("Error processing owner action:", error);
+      res.status(500).json({ message: "Failed to process owner action" });
+    }
+  });
+
   // Start reminder processing scheduler
   reminderService.startReminderScheduler();
 

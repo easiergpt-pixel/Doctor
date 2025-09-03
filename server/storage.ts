@@ -29,9 +29,18 @@ import {
   type InsertBookingReminder,
   type UserReminderPreferences,
   type InsertUserReminderPreferences,
+  scheduleSlots,
+  type ScheduleSlot,
+  type InsertScheduleSlot,
+  specialAvailability,
+  type SpecialAvailability,
+  type InsertSpecialAvailability,
+  bookingContexts,
+  type BookingContext,
+  type InsertBookingContext,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, and, sql, ne } from "drizzle-orm";
 
 export interface IStorage {
   // User operations (mandatory for Replit Auth)
@@ -436,6 +445,147 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return result;
+  }
+
+  // Schedule management methods
+  async getScheduleSlots(userId: string): Promise<ScheduleSlot[]> {
+    return await db.select().from(scheduleSlots).where(eq(scheduleSlots.userId, userId));
+  }
+
+  async createScheduleSlot(slot: InsertScheduleSlot): Promise<ScheduleSlot> {
+    const [result] = await db.insert(scheduleSlots).values(slot).returning();
+    return result;
+  }
+
+  async updateScheduleSlot(id: string, slot: Partial<InsertScheduleSlot>): Promise<ScheduleSlot> {
+    const [result] = await db
+      .update(scheduleSlots)
+      .set({ ...slot, updatedAt: new Date() })
+      .where(eq(scheduleSlots.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteScheduleSlot(id: string): Promise<void> {
+    await db.delete(scheduleSlots).where(eq(scheduleSlots.id, id));
+  }
+
+  // Special availability methods
+  async getSpecialAvailability(userId: string): Promise<SpecialAvailability[]> {
+    return await db.select().from(specialAvailability).where(eq(specialAvailability.userId, userId));
+  }
+
+  async createSpecialAvailability(special: InsertSpecialAvailability): Promise<SpecialAvailability> {
+    const [result] = await db.insert(specialAvailability).values(special).returning();
+    return result;
+  }
+
+  async deleteSpecialAvailability(id: string): Promise<void> {
+    await db.delete(specialAvailability).where(eq(specialAvailability.id, id));
+  }
+
+  // Booking context methods
+  async createBookingContext(context: InsertBookingContext): Promise<BookingContext> {
+    const [result] = await db.insert(bookingContexts).values(context).returning();
+    return result;
+  }
+
+  async getBookingContext(conversationId: string): Promise<BookingContext | undefined> {
+    const [result] = await db.select().from(bookingContexts).where(eq(bookingContexts.conversationId, conversationId));
+    return result;
+  }
+
+  async updateBookingContext(id: string, context: Partial<InsertBookingContext>): Promise<BookingContext> {
+    const [result] = await db
+      .update(bookingContexts)
+      .set({ ...context, updatedAt: new Date() })
+      .where(eq(bookingContexts.id, id))
+      .returning();
+    return result;
+  }
+
+  // Enhanced booking methods
+  async updateBookingWithOwnerAction(id: string, action: string, comment?: string): Promise<Booking> {
+    const [result] = await db
+      .update(bookings)
+      .set({ 
+        ownerAction: action, 
+        ownerComment: comment,
+        status: action === 'approve' ? 'confirmed' : action === 'reject' ? 'cancelled' : 'pending',
+        updatedAt: new Date() 
+      })
+      .where(eq(bookings.id, id))
+      .returning();
+    return result;
+  }
+
+  async getAvailableTimeSlots(userId: string, date: Date, duration: number = 30): Promise<{time: string, available: boolean}[]> {
+    const dayOfWeek = date.getDay();
+    const dateStr = date.toISOString().split('T')[0];
+    
+    // Get regular schedule slots for this day
+    const slots = await db.select().from(scheduleSlots)
+      .where(and(
+        eq(scheduleSlots.userId, userId),
+        eq(scheduleSlots.dayOfWeek, dayOfWeek),
+        eq(scheduleSlots.isAvailable, true)
+      ));
+    
+    // Check for special availability/blackout for this date
+    const special = await db.select().from(specialAvailability)
+      .where(and(
+        eq(specialAvailability.userId, userId),
+        sql`DATE(${specialAvailability.date}) = ${dateStr}`
+      ));
+    
+    // Get existing bookings for this date
+    const existingBookings = await db.select().from(bookings)
+      .where(and(
+        eq(bookings.userId, userId),
+        sql`DATE(${bookings.dateTime}) = ${dateStr}`,
+        ne(bookings.status, 'cancelled')
+      ));
+    
+    const availableSlots: {time: string, available: boolean}[] = [];
+    
+    // If there's a blackout date, return no slots
+    if (special.some(s => !s.isAvailable)) {
+      return availableSlots;
+    }
+    
+    // Generate time slots based on schedule
+    for (const slot of slots) {
+      const startHour = parseInt(slot.startTime.split(':')[0]);
+      const startMin = parseInt(slot.startTime.split(':')[1]);
+      const endHour = parseInt(slot.endTime.split(':')[0]);
+      const endMin = parseInt(slot.endTime.split(':')[1]);
+      
+      const startTime = startHour * 60 + startMin;
+      const endTime = endHour * 60 + endMin;
+      
+      for (let time = startTime; time < endTime; time += (slot.slotDuration || 30)) {
+        const hours = Math.floor(time / 60);
+        const minutes = time % 60;
+        const timeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+        
+        // Check if this time slot conflicts with existing bookings
+        const conflictingBookings = existingBookings.filter(booking => {
+          if (!booking.dateTime) return false;
+          const bookingTime = new Date(booking.dateTime);
+          const bookingHour = bookingTime.getHours();
+          const bookingMin = bookingTime.getMinutes();
+          const bookingTimeInMin = bookingHour * 60 + bookingMin;
+          
+          return Math.abs(bookingTimeInMin - time) < duration;
+        });
+        
+        const available = conflictingBookings.length < (slot.maxBookingsPerSlot || 1);
+        
+        availableSlots.push({ time: timeStr, available });
+      }
+    }
+    
+    return availableSlots.sort((a, b) => a.time.localeCompare(b.time));
   }
 }
 

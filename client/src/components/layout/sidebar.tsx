@@ -15,7 +15,8 @@ import {
   Settings,
   ChevronDown,
   Menu,
-  X
+  X,
+  CheckCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -72,6 +73,18 @@ const getNavigationItems = (unreadConversations: number, pendingBookings: number
     title: "Reminders",
     href: "/reminder-settings",
     icon: Bell,
+  },
+  {
+    title: "Schedule",
+    href: "/schedule-settings",
+    icon: Calendar,
+  },
+  {
+    title: "Approvals",
+    href: "/booking-approval",
+    icon: CheckCircle,
+    badge: Math.min(pendingBookings, 99) > 0 ? Math.min(pendingBookings, 99) : undefined,
+    badgeVariant: "secondary" as const,
   },
 ];
 

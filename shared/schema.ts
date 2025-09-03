@@ -79,7 +79,7 @@ export const messages = pgTable("messages", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// Bookings table
+// Bookings table - Enhanced for confirmation workflow
 export const bookings = pgTable("bookings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").references(() => users.id).notNull(),
@@ -87,9 +87,18 @@ export const bookings = pgTable("bookings", {
   conversationId: varchar("conversation_id").references(() => conversations.id),
   service: varchar("service"),
   dateTime: timestamp("date_time"),
-  status: varchar("status").default("pending"), // pending, confirmed, cancelled
+  status: varchar("status").default("pending"), // pending, confirmed, cancelled, rescheduled
   notes: text("notes"),
+  // Enhanced fields for confirmation workflow
+  aiProposedSlots: jsonb("ai_proposed_slots"), // AI-suggested time slots
+  customerPreference: text("customer_preference"), // Customer's original request
+  ownerAction: varchar("owner_action"), // approve, reject, reschedule
+  ownerComment: text("owner_comment"), // Owner's reason for rejection/rescheduling
+  urgencyLevel: varchar("urgency_level").default("normal"), // urgent, normal, low
+  rescheduledFrom: timestamp("rescheduled_from"), // Original date if rescheduled
+  aiResponseSent: boolean("ai_response_sent").default(false), // Track if AI communicated back
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // Channels table for integration management
@@ -261,3 +270,52 @@ export type InsertAiTraining = z.infer<typeof insertAiTrainingSchema>;
 export type AiTraining = typeof aiTraining.$inferSelect;
 export type InsertUsage = z.infer<typeof insertUsageSchema>;
 export type Usage = typeof usage.$inferSelect;
+
+// Owner's schedule and availability
+export const scheduleSlots = pgTable("schedule_slots", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  dayOfWeek: integer("day_of_week").notNull(), // 0-6 (Sunday-Saturday)
+  startTime: varchar("start_time").notNull(), // HH:MM format
+  endTime: varchar("end_time").notNull(), // HH:MM format
+  isAvailable: boolean("is_available").default(true),
+  slotDuration: integer("slot_duration").default(30), // minutes per appointment
+  maxBookingsPerSlot: integer("max_bookings_per_slot").default(1),
+  notes: text("notes"), // Special instructions
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Special availability or blackout dates
+export const specialAvailability = pgTable("special_availability", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  date: timestamp("date").notNull(),
+  startTime: varchar("start_time"), // If null, entire day is affected
+  endTime: varchar("end_time"),
+  isAvailable: boolean("is_available").notNull(), // true for special availability, false for blackout
+  reason: text("reason"), // Holiday, vacation, special hours, etc.
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// AI Booking Context - Track booking conversations
+export const bookingContexts = pgTable("booking_contexts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  conversationId: varchar("conversation_id").references(() => conversations.id, { onDelete: "cascade" }).notNull(),
+  bookingId: varchar("booking_id").references(() => bookings.id, { onDelete: "cascade" }),
+  customerRequest: text("customer_request").notNull(), // Original customer message
+  aiAnalysis: jsonb("ai_analysis"), // AI's understanding of the request
+  proposedSlots: jsonb("proposed_slots"), // Time slots AI offered
+  customerSelection: jsonb("customer_selection"), // Customer's choice
+  conversationState: varchar("conversation_state").default("initial"), // initial, slots_proposed, awaiting_selection, confirmed, rejected
+  lastAiMessage: text("last_ai_message"), // Last message AI sent
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type ScheduleSlot = typeof scheduleSlots.$inferSelect;
+export type InsertScheduleSlot = typeof scheduleSlots.$inferInsert;
+export type SpecialAvailability = typeof specialAvailability.$inferSelect;
+export type InsertSpecialAvailability = typeof specialAvailability.$inferInsert;
+export type BookingContext = typeof bookingContexts.$inferSelect;
+export type InsertBookingContext = typeof bookingContexts.$inferInsert;
