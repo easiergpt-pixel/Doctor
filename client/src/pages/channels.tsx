@@ -41,6 +41,7 @@ export default function Channels() {
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [selectedChannel, setSelectedChannel] = useState<any>(null);
   const [configValues, setConfigValues] = useState<any>({});
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -262,26 +263,27 @@ export default function Channels() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      <Sidebar />
+      <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
       
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden md:ml-0">
         <Header 
           title="Channels" 
           subtitle="Manage your communication channels and integrations"
+          onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
         />
         
         <main className="flex-1 overflow-y-auto">
-          <div className="p-6 space-y-6">
+          <div className="p-4 md:p-6 space-y-4 md:space-y-6">
             {/* Add Channel Button */}
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div>
-                <h2 className="text-2xl font-semibold text-foreground">Connected Channels</h2>
-                <p className="text-muted-foreground">Connect and manage your customer communication channels</p>
+                <h2 className="text-xl md:text-2xl font-semibold text-foreground">Connected Channels</h2>
+                <p className="text-muted-foreground text-sm md:text-base">Connect and manage your customer communication channels</p>
               </div>
               
               <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button data-testid="button-add-channel">
+                  <Button size="sm" className="w-full sm:w-auto" data-testid="button-add-channel">
                     <Plus className="h-4 w-4 mr-2" />
                     Add Channel
                   </Button>
@@ -523,14 +525,14 @@ export default function Channels() {
                 </CardContent>
               </Card>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                 {channels?.map((channel: any) => {
                   const { status, label, variant } = getChannelStatus(channel);
                   
                   return (
                     <Card key={channel.id} className="hover:shadow-md transition-shadow">
-                      <CardHeader>
-                        <div className="flex items-center justify-between">
+                      <CardHeader className="pb-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                           <div className="flex items-center space-x-3">
                             {getChannelIcon(channel.type)}
                             <div>
@@ -561,7 +563,7 @@ export default function Channels() {
                             </div>
                           )}
                           
-                          <div className="flex space-x-2">
+                          <div className="flex flex-col sm:flex-row gap-2">
                             <Button 
                               variant="outline" 
                               size="sm" 

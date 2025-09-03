@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import Sidebar from "@/components/layout/sidebar";
@@ -12,6 +12,7 @@ import ChatWidgetPreview from "@/components/chat/chat-widget-preview";
 export default function Dashboard() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading } = useAuth();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Redirect to home if not authenticated
   useEffect(() => {
@@ -38,18 +39,22 @@ export default function Dashboard() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      <Sidebar />
+      <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
       
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Header title="Dashboard" subtitle="Monitor your AI receptionist performance" />
+      <div className="flex-1 flex flex-col overflow-hidden md:ml-0">
+        <Header 
+          title="Dashboard" 
+          subtitle="Monitor your AI receptionist performance" 
+          onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
+        />
         
         <main className="flex-1 overflow-y-auto">
-          <div className="p-6 space-y-6">
+          <div className="p-4 md:p-6 space-y-4 md:space-y-6">
             {/* Stats Overview */}
             <StatsGrid />
 
             {/* Active Channels & Recent Activity */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
               <ChannelsOverview />
               <RecentActivity />
             </div>

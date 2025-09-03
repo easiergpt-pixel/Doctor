@@ -1,21 +1,34 @@
 import { Button } from "@/components/ui/button";
-import { Bell, Moon, Plus } from "lucide-react";
+import { Bell, Moon, Plus, Menu } from "lucide-react";
 
 interface HeaderProps {
   title: string;
   subtitle: string;
+  onMenuToggle?: () => void;
 }
 
-export default function Header({ title, subtitle }: HeaderProps) {
+export default function Header({ title, subtitle, onMenuToggle }: HeaderProps) {
   return (
-    <header className="bg-card border-b border-border px-6 py-4">
+    <header className="bg-card border-b border-border px-4 md:px-6 py-4">
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-semibold text-foreground" data-testid="text-header-title">{title}</h2>
-          <p className="text-sm text-muted-foreground" data-testid="text-header-subtitle">{subtitle}</p>
+        {/* Mobile menu button */}
+        {onMenuToggle && (
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="md:hidden mr-2" 
+            onClick={onMenuToggle}
+            data-testid="button-mobile-menu"
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
+        )}
+        <div className="flex-1 min-w-0">
+          <h2 className="text-xl md:text-2xl font-semibold text-foreground truncate" data-testid="text-header-title">{title}</h2>
+          <p className="text-sm text-muted-foreground truncate" data-testid="text-header-subtitle">{subtitle}</p>
         </div>
         
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-2 md:space-x-4">
           {/* Notification Bell */}
           <Button variant="ghost" size="sm" className="relative" data-testid="button-notifications">
             <Bell className="h-5 w-5" />
@@ -30,9 +43,12 @@ export default function Header({ title, subtitle }: HeaderProps) {
           </Button>
 
           {/* Quick Actions */}
-          <Button data-testid="button-quick-action">
+          <Button size="sm" className="hidden sm:flex" data-testid="button-quick-action">
             <Plus className="h-4 w-4 mr-2" />
             Add Channel
+          </Button>
+          <Button size="sm" className="sm:hidden" data-testid="button-quick-action-mobile">
+            <Plus className="h-4 w-4" />
           </Button>
         </div>
       </div>

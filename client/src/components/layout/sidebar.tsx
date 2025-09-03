@@ -11,10 +11,13 @@ import {
   Brain,
   CreditCard,
   Settings,
-  ChevronDown
+  ChevronDown,
+  Menu,
+  X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useState } from "react";
 
 const navigationItems = [
   {
@@ -70,12 +73,30 @@ const accountItems = [
   },
 ];
 
-export default function Sidebar() {
+interface SidebarProps {
+  isOpen: boolean;
+  onToggle: () => void;
+}
+
+export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
   const [location] = useLocation();
   const { user } = useAuth();
 
   return (
-    <aside className="w-64 bg-card border-r border-border sidebar-transition">
+    <>
+      {/* Mobile overlay */}
+      {isOpen && (
+        <div 
+          className="fixed inset-0 z-40 bg-black bg-opacity-50 md:hidden" 
+          onClick={onToggle}
+        />
+      )}
+      
+      {/* Sidebar */}
+      <aside className={cn(
+        "fixed md:static inset-y-0 left-0 z-50 w-64 bg-card border-r border-border transition-transform duration-300 ease-in-out md:translate-x-0",
+        isOpen ? "translate-x-0" : "-translate-x-full"
+      )}>
       <div className="flex flex-col h-full">
         {/* Logo/Brand */}
         <div className="p-6 border-b border-border">
@@ -177,5 +198,6 @@ export default function Sidebar() {
         </div>
       </div>
     </aside>
+    </>
   );
 }

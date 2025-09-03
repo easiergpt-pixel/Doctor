@@ -15,6 +15,7 @@ export default function Conversations() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -49,18 +50,19 @@ export default function Conversations() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      <Sidebar />
+      <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
       
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden md:ml-0">
         <Header 
           title="Conversations" 
           subtitle="Manage all customer conversations across channels"
+          onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
         />
         
         <main className="flex-1 overflow-y-auto">
-          <div className="p-6 space-y-6">
+          <div className="p-4 md:p-6 space-y-4 md:space-y-6">
             {/* Search and Filters */}
-            <div className="flex items-center space-x-4">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
               <div className="relative flex-1 max-w-md">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                 <Input
@@ -71,9 +73,9 @@ export default function Conversations() {
                   data-testid="input-search-conversations"
                 />
               </div>
-              <Button variant="outline" data-testid="button-filter">
+              <Button variant="outline" size="sm" className="w-full sm:w-auto" data-testid="button-filter">
                 <Filter className="h-4 w-4 mr-2" />
-                Filter
+                <span className="hidden sm:inline">Filter</span>
               </Button>
             </div>
 
@@ -96,10 +98,10 @@ export default function Conversations() {
               <div className="space-y-4">
                 {filteredConversations.map((conversation: any) => (
                   <Card key={conversation.id} className="hover:shadow-md transition-shadow">
-                    <CardContent className="p-6">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-4">
-                          <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
+                    <CardContent className="p-4 md:p-6">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="flex items-center space-x-3 md:space-x-4">
+                          <div className="w-10 h-10 md:w-12 md:h-12 bg-primary/10 rounded-full flex items-center justify-center">
                             <User className="h-6 w-6 text-primary" />
                           </div>
                           <div>
@@ -112,7 +114,7 @@ export default function Conversations() {
                           </div>
                         </div>
                         
-                        <div className="flex items-center space-x-4">
+                        <div className="flex flex-wrap items-center gap-2 md:gap-4">
                           <Badge 
                             variant={conversation.channel === 'whatsapp' ? 'default' : 
                                    conversation.channel === 'website' ? 'secondary' : 'outline'}

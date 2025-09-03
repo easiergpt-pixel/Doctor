@@ -37,6 +37,7 @@ export default function AISettings() {
   const { isAuthenticated, isLoading } = useAuth();
   const queryClient = useQueryClient();
   const [isTrainingDialogOpen, setIsTrainingDialogOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -179,34 +180,40 @@ export default function AISettings() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      <Sidebar />
+      <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
       
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Header title="AI Settings" subtitle="Configure your AI receptionist's language, behavior, and training data" />
+      <div className="flex-1 flex flex-col overflow-hidden md:ml-0">
+        <Header 
+          title="AI Settings" 
+          subtitle="Configure your AI receptionist's language, behavior, and training data" 
+          onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
+        />
         
         <main className="flex-1 overflow-y-auto">
-          <div className="container mx-auto p-6 max-w-4xl">
-        <div className="mb-8">
+          <div className="container mx-auto p-4 md:p-6 max-w-4xl">
+        <div className="mb-6 md:mb-8">
           <div className="flex items-center space-x-3 mb-2">
-            <Settings className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl font-bold">AI Settings</h1>
+            <Settings className="h-6 w-6 md:h-8 md:w-8 text-primary" />
+            <h1 className="text-2xl md:text-3xl font-bold">AI Settings</h1>
           </div>
-          <p className="text-muted-foreground">
+          <p className="text-muted-foreground text-sm md:text-base">
             Configure your AI receptionist's language, behavior, and training data
           </p>
         </div>
 
-        <Tabs defaultValue="language" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="language" className="flex items-center space-x-2">
+        <Tabs defaultValue="language" className="space-y-4 md:space-y-6">
+          <TabsList className="grid w-full grid-cols-3 h-auto p-1">
+            <TabsTrigger value="language" className="flex items-center space-x-1 md:space-x-2 text-xs md:text-sm py-2 px-2">
               <Globe className="h-4 w-4" />
-              <span>Language & Prompts</span>
+              <span className="hidden sm:inline">Language & Prompts</span>
+              <span className="sm:hidden">Language</span>
             </TabsTrigger>
-            <TabsTrigger value="training" className="flex items-center space-x-2">
+            <TabsTrigger value="training" className="flex items-center space-x-1 md:space-x-2 text-xs md:text-sm py-2 px-2">
               <Brain className="h-4 w-4" />
-              <span>Training Data</span>
+              <span className="hidden sm:inline">Training Data</span>
+              <span className="sm:hidden">Training</span>
             </TabsTrigger>
-            <TabsTrigger value="preview" className="flex items-center space-x-2">
+            <TabsTrigger value="preview" className="flex items-center space-x-1 md:space-x-2 text-xs md:text-sm py-2 px-2">
               <MessageSquare className="h-4 w-4" />
               <span>Preview</span>
             </TabsTrigger>
