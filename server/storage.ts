@@ -39,12 +39,14 @@ export interface IStorage {
   getCustomer(id: string): Promise<Customer | undefined>;
   getCustomersByUser(userId: string): Promise<Customer[]>;
   getCustomerByIdentifier(userId: string, identifier: string, source: string): Promise<Customer | undefined>;
+  getCustomerByTelegramId(userId: string, telegramChatId: string): Promise<Customer | undefined>;
 
   // Conversation operations
   createConversation(conversation: InsertConversation): Promise<Conversation>;
   getConversation(id: string): Promise<Conversation | undefined>;
   getConversationsByUser(userId: string): Promise<Conversation[]>;
   getActiveConversations(userId: string): Promise<Conversation[]>;
+  getActiveConversationByCustomer(customerId: string): Promise<Conversation | undefined>;
   updateConversationStatus(id: string, status: string): Promise<void>;
 
   // Message operations
@@ -62,6 +64,7 @@ export interface IStorage {
   createChannel(channel: InsertChannel): Promise<Channel>;
   getChannel(id: string): Promise<Channel | undefined>;
   getChannelsByUser(userId: string): Promise<Channel[]>;
+  getChannelsByType(type: string): Promise<Channel[]>;
   updateChannelStatus(id: string, isActive: boolean): Promise<void>;
   updateChannelConfig(id: string, config: any): Promise<void>;
 
@@ -148,6 +151,20 @@ export class DatabaseStorage implements IStorage {
     return customer;
   }
 
+  async getCustomerByTelegramId(userId: string, telegramChatId: string): Promise<Customer | undefined> {
+    const [customer] = await db
+      .select()
+      .from(customers)
+      .where(
+        and(
+          eq(customers.userId, userId),
+          eq(customers.source, "telegram"),
+          sql`${customers.metadata}->>'identifier' = ${telegramChatId}`
+        )
+      );
+    return customer;
+  }
+
   // Conversation operations
   async createConversation(conversation: InsertConversation): Promise<Conversation> {
     const [newConversation] = await db.insert(conversations).values(conversation).returning();
@@ -173,6 +190,15 @@ export class DatabaseStorage implements IStorage {
       .from(conversations)
       .where(and(eq(conversations.userId, userId), eq(conversations.status, "active")))
       .orderBy(desc(conversations.lastMessageAt));
+  }
+
+  async getActiveConversationByCustomer(customerId: string): Promise<Conversation | undefined> {
+    const [conversation] = await db
+      .select()
+      .from(conversations)
+      .where(and(eq(conversations.customerId, customerId), eq(conversations.status, "active")))
+      .orderBy(desc(conversations.lastMessageAt));
+    return conversation;
   }
 
   async updateConversationStatus(id: string, status: string): Promise<void> {
@@ -250,6 +276,10 @@ export class DatabaseStorage implements IStorage {
 
   async getChannelsByUser(userId: string): Promise<Channel[]> {
     return await db.select().from(channels).where(eq(channels.userId, userId));
+  }
+
+  async getChannelsByType(type: string): Promise<Channel[]> {
+    return await db.select().from(channels).where(eq(channels.type, type));
   }
 
   async getChannel(id: string): Promise<Channel | undefined> {

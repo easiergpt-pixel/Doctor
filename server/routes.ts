@@ -330,6 +330,184 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Telegram Webhook Handler
+  app.post('/api/webhooks/telegram', async (req, res) => {
+    try {
+      console.log('Telegram webhook received:', JSON.stringify(req.body, null, 2));
+      
+      const update = req.body;
+      
+      // Validate webhook has message
+      if (!update.message) {
+        console.log('No message in webhook update');
+        return res.status(200).send('OK');
+      }
+      
+      const message = update.message;
+      const chatId = message.chat.id.toString();
+      const messageText = message.text || '';
+      const firstName = message.from?.first_name || 'Unknown';
+      const lastName = message.from?.last_name || '';
+      const username = message.from?.username;
+      
+      if (!messageText) {
+        console.log('No text in message');
+        return res.status(200).send('OK');
+      }
+      
+      // Find the Telegram channel configuration
+      const channels = await storage.getChannelsByType('telegram');
+      if (channels.length === 0) {
+        console.error('No Telegram channels configured');
+        return res.status(200).send('OK');
+      }
+      
+      const channel = channels[0]; // Use first configured Telegram channel
+      const config = typeof channel.config === 'string' ? JSON.parse(channel.config) : (channel.config || {});
+      const botToken = config.botToken;
+      
+      if (!botToken) {
+        console.error('No bot token configured');
+        return res.status(200).send('OK');
+      }
+      
+      // Find or create customer
+      let customer = await storage.getCustomerByTelegramId(channel.userId, chatId);
+      if (!customer) {
+        const customerName = [firstName, lastName].filter(Boolean).join(' ') || 'Telegram User';
+        customer = await storage.createCustomer({
+          userId: channel.userId,
+          name: customerName,
+          source: 'telegram',
+          metadata: { 
+            identifier: chatId,
+            telegramUsername: username,
+            firstName: firstName,
+            lastName: lastName 
+          },
+        });
+      }
+      
+      // Find or create conversation
+      let conversation = await storage.getActiveConversationByCustomer(customer.id);
+      if (!conversation) {
+        conversation = await storage.createConversation({
+          userId: channel.userId,
+          customerId: customer.id,
+          channel: channel.id,
+          status: 'active',
+          lastMessageAt: new Date(),
+        });
+      }
+      
+      // Store customer message
+      await storage.createMessage({
+        conversationId: conversation.id,
+        content: messageText,
+        sender: 'customer',
+        metadata: { 
+          channel: 'telegram', 
+          customerIdentifier: chatId,
+          telegramMessageId: message.message_id,
+          telegramUserId: message.from?.id
+        },
+      });
+      
+      // Get conversation history for AI context
+      const messages = await storage.getMessagesByConversation(conversation.id);
+      const conversationHistory = messages.slice(-10).map(m => ({
+        role: m.sender === 'customer' ? 'user' as const : 'assistant' as const,
+        content: m.content,
+      }));
+      
+      // Generate AI response
+      const aiResponse = await generateAIResponse(
+        channel.userId,
+        messageText,
+        conversationHistory
+      );
+      
+      // Store AI response
+      await storage.createMessage({
+        conversationId: conversation.id,
+        content: aiResponse.message,
+        sender: 'ai',
+        metadata: { 
+          action: aiResponse.action, 
+          confidence: aiResponse.confidence,
+          channel: 'telegram'
+        },
+      });
+      
+      // Handle booking if needed
+      if (aiResponse.action === 'booking' && aiResponse.bookingData) {
+        const booking = await storage.createBooking({
+          userId: channel.userId,
+          customerId: customer.id,
+          conversationId: conversation.id,
+          service: aiResponse.bookingData.service,
+          dateTime: aiResponse.bookingData.preferredDateTime ? new Date(aiResponse.bookingData.preferredDateTime) : undefined,
+          status: 'pending',
+          notes: `Auto-created from Telegram chat. Customer: ${aiResponse.bookingData.customerName || customer.name}`,
+        });
+        
+        realtimeService.notifyBookingCreated(channel.userId, booking);
+      }
+      
+      // Send response back to Telegram
+      try {
+        const telegramApiUrl = `https://api.telegram.org/bot${botToken}/sendMessage`;
+        const response = await fetch(telegramApiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: aiResponse.message,
+            parse_mode: 'Markdown'
+          })
+        });
+        
+        if (!response.ok) {
+          console.error('Failed to send Telegram response:', await response.text());
+        }
+      } catch (error) {
+        console.error('Error sending Telegram message:', error);
+      }
+      
+      // Notify real-time clients
+      realtimeService.broadcastToUser(channel.userId, {
+        type: 'new_message',
+        conversationId: conversation.id,
+        message: {
+          id: `temp-${Date.now()}`,
+          conversationId: conversation.id,
+          content: messageText,
+          sender: 'customer',
+          createdAt: new Date(),
+          metadata: { channel: 'telegram' }
+        }
+      });
+      
+      realtimeService.broadcastToUser(channel.userId, {
+        type: 'new_message',
+        conversationId: conversation.id,
+        message: {
+          id: `temp-ai-${Date.now()}`,
+          conversationId: conversation.id,
+          content: aiResponse.message,
+          sender: 'ai',
+          createdAt: new Date(),
+          metadata: { action: aiResponse.action, confidence: aiResponse.confidence }
+        }
+      });
+      
+      res.status(200).send('OK');
+    } catch (error) {
+      console.error('Telegram webhook error:', error);
+      res.status(200).send('OK'); // Always return 200 to avoid Telegram retries
+    }
+  });
+
   // Local subscription management
   app.post('/api/create-subscription', isAuthenticated, async (req: any, res) => {
     const userId = req.user.claims.sub;

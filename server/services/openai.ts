@@ -111,8 +111,8 @@ Guidelines:
       model: "gpt-5",
       messages,
       response_format: { type: "json_object" },
-      max_tokens: 500,
-      temperature: 0.7,
+      max_completion_tokens: 500,
+
     });
 
     const aiResponse = JSON.parse(response.choices[0].message.content || '{}');
@@ -160,8 +160,8 @@ export async function generateBusinessSummary(userId: string, timeframe: string 
     const response = await openai.chat.completions.create({
       model: "gpt-5",
       messages: [{ role: "user", content: prompt }],
-      max_tokens: 250,
-      temperature: 0.7,
+      max_completion_tokens: 250,
+
     });
 
     return response.choices[0].message.content || "Business is performing well with steady customer engagement.";
