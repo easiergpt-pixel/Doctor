@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { 
   Bot, 
   BarChart3, 
+  Bell,
   MessageSquare, 
   Plug, 
   Calendar, 

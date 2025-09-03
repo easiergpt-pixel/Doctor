@@ -79,7 +79,7 @@ export default function ReminderSettings() {
 
   // Update form when preferences are loaded
   useEffect(() => {
-    if (preferences) {
+    if (preferences && typeof preferences === 'object') {
       form.reset({
         emailReminders: preferences.emailReminders ?? true,
         smsReminders: preferences.smsReminders ?? false,
@@ -156,9 +156,13 @@ export default function ReminderSettings() {
 
   return (
     <div className="flex h-screen bg-background">
-      <Sidebar open={sidebarOpen} onOpenChange={setSidebarOpen} />
+      <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <Header onMenuClick={() => setSidebarOpen(true)} />
+        <Header 
+          title="Reminder Settings" 
+          subtitle="Configure how and when to send appointment reminders"
+          onMenuToggle={() => setSidebarOpen(true)} 
+        />
         <main className="flex-1 overflow-auto p-6">
           <div className="max-w-4xl mx-auto space-y-6">
             <div className="flex items-center gap-3 mb-6">
