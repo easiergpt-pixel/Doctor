@@ -53,6 +53,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Channel stats - conversation count by channel type
+  app.get('/api/channels/stats', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const conversations = await storage.getConversationsByUser(userId);
+      
+      // Count conversations by channel type for today
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const channelStats: Record<string, number> = {};
+      
+      for (const conv of conversations) {
+        const channel = await storage.getChannel(conv.channel);
+        const channelType = channel?.type || 'website';
+        
+        // Count conversations from today
+        if (conv.createdAt) {
+          const convDate = new Date(conv.createdAt);
+          if (convDate >= today) {
+            channelStats[channelType] = (channelStats[channelType] || 0) + 1;
+          }
+        }
+      }
+      
+      res.json(channelStats);
+    } catch (error) {
+      console.error("Error fetching channel stats:", error);
+      res.status(500).json({ message: "Failed to fetch channel stats" });
+    }
+  });
+
   // Conversations
   app.get('/api/conversations', isAuthenticated, async (req: any, res) => {
     try {

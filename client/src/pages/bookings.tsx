@@ -577,25 +577,21 @@ export default function Bookings() {
                       </div>
                     </div>
 
-                    {selectedBooking.customerPhone && (
-                      <div className="flex items-center gap-3">
-                        <Phone className="h-5 w-5 text-muted-foreground" />
-                        <div>
-                          <p className="font-medium">Phone</p>
-                          <p className="text-lg">{selectedBooking.customerPhone}</p>
-                        </div>
+                    <div className="flex items-center gap-3">
+                      <Phone className="h-5 w-5 text-muted-foreground" />
+                      <div>
+                        <p className="font-medium">Phone</p>
+                        <p className="text-lg">{selectedBooking.customerPhone || 'Not provided'}</p>
                       </div>
-                    )}
+                    </div>
 
-                    {selectedBooking.customerEmail && (
-                      <div className="flex items-center gap-3">
-                        <Mail className="h-5 w-5 text-muted-foreground" />
-                        <div>
-                          <p className="font-medium">Email</p>
-                          <p className="text-lg">{selectedBooking.customerEmail}</p>
-                        </div>
+                    <div className="flex items-center gap-3">
+                      <Mail className="h-5 w-5 text-muted-foreground" />
+                      <div>
+                        <p className="font-medium">Email</p>
+                        <p className="text-lg">{selectedBooking.customerEmail || 'Not provided'}</p>
                       </div>
-                    )}
+                    </div>
 
                     {selectedBooking.notes && (
                       <div className="p-4 bg-muted/20 rounded-lg">

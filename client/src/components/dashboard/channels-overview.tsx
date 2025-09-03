@@ -26,20 +26,20 @@ export default function ChannelsOverview() {
         return <Facebook className="h-6 w-6 text-blue-600" />;
       case 'instagram':
         return <Instagram className="h-6 w-6 text-pink-500" />;
+      case 'telegram':
+        return <Smartphone className="h-6 w-6 text-blue-500" />;
       default:
         return <Globe className="h-6 w-6 text-gray-500" />;
     }
   };
 
+  // Fetch real channel statistics
+  const { data: channelStats } = useQuery<Record<string, number>>({
+    queryKey: ["/api/channels/stats"],
+  });
+
   const getChannelStats = (type: string) => {
-    // Mock conversation counts for demo
-    const mockStats = {
-      whatsapp: 24,
-      website: 31,
-      facebook: 18,
-      instagram: 0,
-    };
-    return mockStats[type as keyof typeof mockStats] || 0;
+    return channelStats?.[type] || 0;
   };
 
   if (isLoading) {
@@ -64,6 +64,7 @@ export default function ChannelsOverview() {
     { type: 'facebook', name: 'Facebook Messenger', isActive: true },
     { type: 'website', name: 'Website Widget', isActive: true },
     { type: 'instagram', name: 'Instagram DM', isActive: false },
+    { type: 'telegram', name: 'Telegram Bot', isActive: true },
   ];
 
   const channelsToShow = (channels && channels.length > 0) ? channels : defaultChannels;
