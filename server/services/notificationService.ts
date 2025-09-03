@@ -37,35 +37,39 @@ export async function notifyCustomerOfBookingAction(
   ownerComment?: string
 ): Promise<boolean> {
   try {
-    console.log(`Notifying customer of booking action: ${action} for booking ${bookingId}`);
+    console.log(`🔔 Notifying customer of booking action: ${action} for booking ${bookingId}`);
     
     // Get booking details
     const booking = await storage.getBooking(bookingId);
     if (!booking) {
-      console.error('Booking not found:', bookingId);
+      console.error('❌ Booking not found:', bookingId);
       return false;
     }
+    console.log(`✅ Found booking:`, { id: booking.id, service: booking.service, customerId: booking.customerId });
 
     // Get customer details
     const customer = booking.customerId ? await storage.getCustomer(booking.customerId) : null;
     if (!customer) {
-      console.error('Customer not found:', booking.customerId);
+      console.error('❌ Customer not found:', booking.customerId);
       return false;
     }
+    console.log(`✅ Found customer:`, { id: customer.id, name: customer.name, metadata: customer.metadata });
 
     // Get conversation details
     const conversation = booking.conversationId ? await storage.getConversation(booking.conversationId) : null;
     if (!conversation) {
-      console.error('Conversation not found:', booking.conversationId);
+      console.error('❌ Conversation not found:', booking.conversationId);
       return false;
     }
+    console.log(`✅ Found conversation:`, { id: conversation.id, channel: conversation.channel });
 
     // Get channel configuration to determine how to send the message
     const channel = await storage.getChannel(conversation.channel);
     if (!channel) {
-      console.error('Channel not found:', conversation.channel);
+      console.error('❌ Channel not found:', conversation.channel);
       return false;
     }
+    console.log(`✅ Found channel:`, { id: channel.id, type: channel.type, name: channel.name });
 
     // Only handle Telegram for now
     if (channel.type !== 'telegram') {
@@ -85,9 +89,10 @@ export async function notifyCustomerOfBookingAction(
     const metadata = customer.metadata as any;
     const chatId = metadata?.identifier;
     if (!chatId) {
-      console.error('No Telegram chat ID found for customer');
+      console.error('❌ No Telegram chat ID found for customer. Metadata:', metadata);
       return false;
     }
+    console.log(`✅ Found Telegram chat ID: ${chatId}`);
 
     // Generate AI response based on the owner action
     const aiPrompt = createBookingActionPrompt(booking, action, ownerComment);
@@ -111,6 +116,7 @@ export async function notifyCustomerOfBookingAction(
       parse_mode: 'HTML'
     };
 
+    console.log(`🚀 Sending Telegram message:`, { chatId, message: aiResponse.message.substring(0, 100) + '...' });
     const sent = await sendTelegramMessage(botToken, telegramMessage);
     
     if (sent) {
@@ -129,8 +135,10 @@ export async function notifyCustomerOfBookingAction(
       // Update conversation last message time
       await storage.updateConversationStatus(conversation.id, 'active');
 
-      console.log(`Successfully notified customer of ${action} action via Telegram`);
+      console.log(`✅ Successfully notified customer of ${action} action via Telegram`);
       return true;
+    } else {
+      console.error(`❌ Failed to send Telegram message to ${chatId}`);
     }
 
     return false;

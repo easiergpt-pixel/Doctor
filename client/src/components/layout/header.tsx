@@ -1,8 +1,9 @@
 import { Button } from "@/components/ui/button";
-import { Bell, Moon, Plus, Menu } from "lucide-react";
+import { Bell, Moon, Plus, Menu, Sun } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { Link } from "wouter";
+import { useState, useEffect } from "react";
 
 interface HeaderProps {
   title: string;
@@ -12,6 +13,34 @@ interface HeaderProps {
 
 export default function Header({ title, subtitle, onMenuToggle }: HeaderProps) {
   const { isAuthenticated } = useAuth();
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  
+  // Initialize theme from localStorage or system preference
+  useEffect(() => {
+    const saved = localStorage.getItem('theme');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const shouldBeDark = saved === 'dark' || (!saved && prefersDark);
+    
+    setIsDarkMode(shouldBeDark);
+    if (shouldBeDark) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, []);
+  
+  const toggleTheme = () => {
+    const newDarkMode = !isDarkMode;
+    setIsDarkMode(newDarkMode);
+    
+    if (newDarkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  };
   
   // Fetch pending reminders and notifications
   const { data: conversations } = useQuery({
@@ -61,8 +90,8 @@ export default function Header({ title, subtitle, onMenuToggle }: HeaderProps) {
           </Link>
           
           {/* Theme Toggle */}
-          <Button variant="ghost" size="sm" data-testid="button-theme-toggle">
-            <Moon className="h-5 w-5" />
+          <Button variant="ghost" size="sm" onClick={toggleTheme} data-testid="button-theme-toggle">
+            {isDarkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
           </Button>
 
           {/* Quick Actions */}

@@ -48,6 +48,8 @@ export default function BookingApproval() {
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [actionComment, setActionComment] = useState("");
   const [filter, setFilter] = useState("pending");
+  const [showRescheduleDialog, setShowRescheduleDialog] = useState(false);
+  const [newDateTime, setNewDateTime] = useState("");
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -340,8 +342,89 @@ export default function BookingApproval() {
               </TabsContent>
             </Tabs>
 
+            {/* Reschedule Dialog */}
+            {showRescheduleDialog && selectedBooking && (
+              <Card className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4">
+                <div className="bg-background border rounded-lg p-6 max-w-md w-full">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold">Reschedule Booking</h3>
+                    <Button variant="ghost" size="sm" onClick={() => {
+                      setShowRescheduleDialog(false);
+                      setNewDateTime("");
+                    }}>
+                      ✕
+                    </Button>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <Label>Current Time</Label>
+                      <div className="text-sm bg-muted p-2 rounded">
+                        {selectedBooking.dateTime 
+                          ? format(new Date(selectedBooking.dateTime), 'EEEE, MMMM dd, yyyy \'at\' HH:mm')
+                          : 'No specific time requested'
+                        }
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="newDateTime">New Date & Time</Label>
+                      <Input
+                        id="newDateTime"
+                        type="datetime-local"
+                        value={newDateTime}
+                        onChange={(e) => setNewDateTime(e.target.value)}
+                        className="mt-1"
+                        min={new Date().toISOString().slice(0, 16)}
+                      />
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="rescheduleComment">Reason for Rescheduling</Label>
+                      <Textarea
+                        id="rescheduleComment"
+                        placeholder="Explain why you need to reschedule (this will be sent to the customer)..."
+                        value={actionComment}
+                        onChange={(e) => setActionComment(e.target.value)}
+                        className="mt-1"
+                      />
+                    </div>
+                    
+                    <div className="flex space-x-3">
+                      <Button
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => {
+                          setShowRescheduleDialog(false);
+                          setNewDateTime("");
+                          setActionComment("");
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        className="flex-1"
+                        onClick={() => {
+                          if (newDateTime) {
+                            const rescheduleComment = `${actionComment}${actionComment ? ' ' : ''}New time: ${format(new Date(newDateTime), 'EEEE, MMMM dd, yyyy \'at\' HH:mm')}`;
+                            setActionComment(rescheduleComment);
+                            handleOwnerAction('reschedule');
+                            setShowRescheduleDialog(false);
+                            setNewDateTime("");
+                          }
+                        }}
+                        disabled={!newDateTime || ownerActionMutation.isPending}
+                      >
+                        Confirm Reschedule
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            )}
+
             {/* Booking Detail Modal */}
-            {selectedBooking && (
+            {selectedBooking && !showRescheduleDialog && (
               <Card className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4">
                 <div className="bg-background border rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
                   <div className="flex items-center justify-between mb-6">
@@ -459,7 +542,7 @@ export default function BookingApproval() {
                         <Button
                           variant="outline"
                           className="flex-1"
-                          onClick={() => handleOwnerAction('reschedule')}
+                          onClick={() => setShowRescheduleDialog(true)}
                           disabled={ownerActionMutation.isPending}
                           data-testid="button-reschedule-booking"
                         >
