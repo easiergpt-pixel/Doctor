@@ -44,6 +44,7 @@ export interface IStorage {
   // Conversation operations
   createConversation(conversation: InsertConversation): Promise<Conversation>;
   getConversation(id: string): Promise<Conversation | undefined>;
+  getConversationById(id: string): Promise<Conversation | undefined>;
   getConversationsByUser(userId: string): Promise<Conversation[]>;
   getActiveConversations(userId: string): Promise<Conversation[]>;
   getActiveConversationByCustomer(customerId: string): Promise<Conversation | undefined>;
@@ -172,24 +173,69 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getConversation(id: string): Promise<Conversation | undefined> {
-    const [conversation] = await db.select().from(conversations).where(eq(conversations.id, id));
-    return conversation;
+    const [result] = await db
+      .select({
+        id: conversations.id,
+        userId: conversations.userId,
+        customerId: conversations.customerId,
+        channel: channels.type, // Use channel type instead of UUID
+        channelName: channels.name,
+        status: conversations.status,
+        createdAt: conversations.createdAt,
+        updatedAt: conversations.updatedAt,
+        lastMessageAt: conversations.lastMessageAt,
+      })
+      .from(conversations)
+      .leftJoin(channels, eq(conversations.channel, channels.id))
+      .where(eq(conversations.id, id));
+    
+    return result as any;
+  }
+
+  async getConversationById(id: string): Promise<Conversation | undefined> {
+    return this.getConversation(id);
   }
 
   async getConversationsByUser(userId: string): Promise<Conversation[]> {
-    return await db
-      .select()
+    const result = await db
+      .select({
+        id: conversations.id,
+        userId: conversations.userId,
+        customerId: conversations.customerId,
+        channel: channels.type, // Use channel type instead of UUID
+        channelName: channels.name,
+        status: conversations.status,
+        createdAt: conversations.createdAt,
+        updatedAt: conversations.updatedAt,
+        lastMessageAt: conversations.lastMessageAt,
+      })
       .from(conversations)
+      .leftJoin(channels, eq(conversations.channel, channels.id))
       .where(eq(conversations.userId, userId))
       .orderBy(desc(conversations.lastMessageAt));
+    
+    return result as any[];
   }
 
   async getActiveConversations(userId: string): Promise<Conversation[]> {
-    return await db
-      .select()
+    const result = await db
+      .select({
+        id: conversations.id,
+        userId: conversations.userId,
+        customerId: conversations.customerId,
+        channel: channels.type, // Use channel type instead of UUID
+        channelName: channels.name,
+        status: conversations.status,
+        createdAt: conversations.createdAt,
+        updatedAt: conversations.updatedAt,
+        lastMessageAt: conversations.lastMessageAt,
+      })
       .from(conversations)
+      .leftJoin(channels, eq(conversations.channel, channels.id))
       .where(and(eq(conversations.userId, userId), eq(conversations.status, "active")))
       .orderBy(desc(conversations.lastMessageAt));
+    
+    return result as any[];
   }
 
   async getActiveConversationByCustomer(customerId: string): Promise<Conversation | undefined> {

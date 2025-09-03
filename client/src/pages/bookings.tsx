@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Calendar as CalendarIcon, Clock, User, ChevronLeft, ChevronRight, Plus, Edit } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   format, 
   isToday, 
@@ -31,7 +32,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useForm } from "react-hook-form";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -177,7 +177,6 @@ export default function Bookings() {
         <Header 
           title="Booking Calendar"
           subtitle="Manage and view all your appointments"
-          onMenuClick={() => setSidebarOpen(!sidebarOpen)}
         />
         
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-background p-6">
