@@ -129,15 +129,16 @@ export default function Channels() {
         ];
       case 'instagram':
         return [
-          'Go to https://business.facebook.com and connect your Instagram Business account',
-          'In Meta for Developers (https://developers.facebook.com), add Instagram Basic Display to your app',
-          'Go to Instagram → Basic Display → User Token Generator',
-          'Generate a long-lived access token for your Instagram account',
-          'Set up Instagram Messaging API in your app dashboard',
-          'Configure webhook endpoint in Messenger settings',
+          'Go to https://business.facebook.com and connect your Instagram Business account to a Facebook Page',
+          'Visit https://developers.facebook.com and create or select your app',
+          'Click "Add Product" and add "Messenger" (Instagram messaging uses Facebook Messenger API)',
+          'In Messenger settings, scroll down to "Instagram" section',
+          'Click "Add Instagram Account" and connect your Instagram Business account',
+          'Generate a Page Access Token that includes Instagram permissions',
+          'Set up webhooks: In Messenger → Settings → Webhooks, click "Add Callback URL"',
           `Enter webhook URL: ${window.location.origin}/api/webhooks/instagram`,
-          'Subscribe to webhook events: messages, messaging_postbacks',
-          'In Instagram app settings, enable "Allow access to messages"',
+          'Subscribe to webhook events: messages, messaging_postbacks, messaging_optins',
+          'In the Instagram section, enable "instagram_messaging" webhook subscription',
           'Test by sending a direct message to your Instagram Business account'
         ];
       case 'website':
