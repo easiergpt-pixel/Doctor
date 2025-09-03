@@ -393,22 +393,26 @@ export default function Bookings() {
             </CardContent>
           </Card>
 
-          {/* Calendar Grid */}
-          <Card className="mb-6">
+          {/* Colorful Calendar Grid */}
+          <Card className="mb-6 bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950 border-2">
             <CardContent className="pt-6">
               {calendarView === 'month' && (
                 <>
                   {/* Days of Week Header */}
-                  <div className="grid grid-cols-7 gap-px mb-2">
-                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-                      <div key={day} className="p-2 text-center text-sm font-medium text-muted-foreground">
-                        {day}
+                  <div className="grid grid-cols-7 gap-px mb-4">
+                    {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((day, index) => (
+                      <div key={day} className={`p-3 text-center text-sm font-bold rounded-lg ${
+                        index === 0 || index === 6 
+                          ? 'text-red-600 bg-red-100 dark:bg-red-900 dark:text-red-200' 
+                          : 'text-blue-600 bg-blue-100 dark:bg-blue-900 dark:text-blue-200'
+                      }`}>
+                        {day.slice(0, 3)}
                       </div>
                     ))}
                   </div>
                   
                   {/* Calendar Days */}
-                  <div className="grid grid-cols-7 gap-px">
+                  <div className="grid grid-cols-7 gap-2">
                     {eachDayOfInterval({
                       start: startOfWeek(startOfMonth(currentDate)),
                       end: endOfWeek(endOfMonth(currentDate))
@@ -421,19 +425,27 @@ export default function Bookings() {
                       return (
                         <div
                           key={date.toISOString()}
-                          className={`min-h-[120px] p-2 border cursor-pointer transition-colors ${
+                          className={`min-h-[120px] p-3 rounded-xl cursor-pointer transition-all duration-300 border-2 ${
                             !isCurrentMonth 
-                              ? 'bg-muted/30 text-muted-foreground' 
+                              ? 'bg-gray-100 text-gray-400 border-gray-200 dark:bg-gray-800 dark:text-gray-600 dark:border-gray-700' 
                               : isSelected
-                                ? 'bg-primary/20 border-primary'
+                                ? 'bg-gradient-to-br from-purple-100 to-pink-100 border-purple-300 shadow-lg transform scale-105 dark:from-purple-900 dark:to-pink-900 dark:border-purple-600'
                                 : isToday
-                                  ? 'bg-accent border-accent-foreground'
-                                  : 'bg-background hover:bg-muted/50'
+                                  ? 'bg-gradient-to-br from-blue-100 to-cyan-100 border-blue-400 shadow-md dark:from-blue-900 dark:to-cyan-900 dark:border-blue-600'
+                                  : 'bg-white border-gray-200 hover:bg-gradient-to-br hover:from-gray-50 hover:to-blue-50 hover:border-blue-300 hover:shadow-md dark:bg-gray-900 dark:border-gray-700 dark:hover:from-gray-800 dark:hover:to-blue-900'
                           }`}
                           onClick={() => setSelectedDate(date)}
                           data-testid={`calendar-date-${format(date, 'yyyy-MM-dd')}`}
                         >
-                          <div className="text-sm font-medium mb-1">
+                          <div className={`text-sm font-bold mb-2 flex items-center justify-center w-6 h-6 rounded-full ${
+                            isToday 
+                              ? 'bg-blue-500 text-white' 
+                              : isSelected 
+                                ? 'bg-purple-500 text-white'
+                                : !isCurrentMonth
+                                  ? 'text-gray-400'
+                                  : 'text-gray-700 dark:text-gray-300'
+                          }`}>
                             {format(date, 'd')}
                           </div>
                           

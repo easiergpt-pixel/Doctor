@@ -24,20 +24,9 @@ export default function Header({ title, subtitle, onMenuToggle }: HeaderProps) {
     enabled: isAuthenticated,
   });
   
-  // Calculate notification count - only truly unread/pending items
-  // For conversations: only recent active ones (last 24 hours)
-  const recentActiveConversations = Array.isArray(conversations) ? conversations.filter((c: any) => {
-    if (c.status !== 'active') return false;
-    if (!c.lastMessageAt) return true; // No messages yet, count as unread
-    const lastMessage = new Date(c.lastMessageAt);
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    return lastMessage > oneDayAgo;
-  }).length : 0;
-  
-  const pendingBookings = Array.isArray(bookings) ? bookings.filter((b: any) => b.status === 'pending').length : 0;
-  
-  // Cap notifications to prevent overwhelming display
-  const totalNotifications = Math.min(recentActiveConversations + pendingBookings, 99);
+  // Calculate notification count - simplified for now
+  // For now, notifications = 0 until we have proper notification system
+  const totalNotifications = 0;
   return (
     <header className="bg-card border-b border-border px-4 md:px-6 py-4">
       <div className="flex items-center justify-between">
@@ -60,7 +49,7 @@ export default function Header({ title, subtitle, onMenuToggle }: HeaderProps) {
         
         <div className="flex items-center space-x-2 md:space-x-4">
           {/* Notification Bell */}
-          <Link href="/reminder-settings">
+          <Link href="/notifications">
             <Button variant="ghost" size="sm" className="relative" data-testid="button-notifications">
               <Bell className="h-5 w-5" />
               {totalNotifications > 0 && (

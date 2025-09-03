@@ -108,20 +108,21 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
     enabled: isAuthenticated,
   });
   
-  // Calculate dynamic counts with realistic limits
-  // For conversations: only show recent active ones as "unread" (last 24 hours)
-  const recentActiveConversations = Array.isArray(conversations) ? conversations.filter((c: any) => {
-    if (c.status !== 'active') return false;
-    if (!c.lastMessageAt) return true; // No messages yet, count as unread
-    const lastMessage = new Date(c.lastMessageAt);
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    return lastMessage > oneDayAgo;
+  // Calculate dynamic counts - debug and simplify
+  console.log('Debug: conversations data:', conversations);
+  console.log('Debug: bookings data:', bookings);
+  
+  // For now, show 0 for conversations until we implement proper read/unread tracking
+  const unreadConversations = 0;
+  
+  // Only count truly pending bookings
+  const pendingBookings = Array.isArray(bookings) ? bookings.filter((b: any) => {
+    console.log('Debug: booking status:', b.status);
+    return b.status === 'pending';
   }).length : 0;
   
-  const pendingBookings = Array.isArray(bookings) ? bookings.filter((b: any) => b.status === 'pending').length : 0;
-  
-  // Cap the counts to reasonable numbers
-  const unreadConversations = Math.min(recentActiveConversations, 99);
+  console.log('Debug: unread conversations:', unreadConversations);
+  console.log('Debug: pending bookings:', pendingBookings);
   
   const navigationItems = getNavigationItems(unreadConversations, pendingBookings);
 
