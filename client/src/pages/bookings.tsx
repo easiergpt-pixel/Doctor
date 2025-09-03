@@ -2,40 +2,62 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import Sidebar from "@/components/layout/sidebar";
 import Header from "@/components/layout/header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar as CalendarIcon, Clock, User, ChevronLeft, ChevronRight, Plus, Edit } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, User, ChevronLeft, ChevronRight, Plus, Edit, Phone, Mail, MapPin } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   format, 
   isToday, 
-  parseISO, 
   startOfMonth, 
   endOfMonth, 
   eachDayOfInterval, 
   isSameMonth, 
-  isSameDay, 
-  addMonths, 
-  subMonths, 
-  startOfWeek, 
-  endOfWeek,
-  getWeeksInMonth,
-  addWeeks,
-  subWeeks,
-  startOfYear,
-  endOfYear
+  isSameDay,
+  addMonths,
+  subMonths,
+  parseISO,
+  startOfWeek,
+  endOfWeek
 } from "date-fns";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { useForm } from "react-hook-form";
-import { apiRequest } from "@/lib/queryClient";
 
 type CalendarView = 'month' | 'week' | 'year';
+
+const bookingSchema = z.object({
+  service: z.string().min(1, "Service is required"),
+  dateTime: z.string().min(1, "Date and time are required"),
+  customerName: z.string().min(1, "Customer name is required"),
+  customerPhone: z.string().optional(),
+  customerEmail: z.string().email().optional().or(z.literal("")),
+  notes: z.string().optional(),
+  status: z.enum(["pending", "confirmed", "cancelled"]).default("pending"),
+});
+
+type BookingFormData = z.infer<typeof bookingSchema>;
 
 export default function Bookings() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -45,7 +67,7 @@ export default function Bookings() {
   const [calendarView, setCalendarView] = useState<CalendarView>('month');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [editingBooking, setEditingBooking] = useState<any>(null);
+  const [selectedBooking, setSelectedBooking] = useState<any>(null);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -62,13 +84,8 @@ export default function Bookings() {
     }
   }, [isAuthenticated, isLoading, toast]);
 
-  // Fetch bookings
-  const { data: bookings, isLoading: bookingsLoading } = useQuery({
-    queryKey: ["/api/bookings"],
-    enabled: isAuthenticated,
-  });
-
-  const form = useForm({
+  const form = useForm<BookingFormData>({
+    resolver: zodResolver(bookingSchema),
     defaultValues: {
       service: "",
       dateTime: "",
@@ -80,239 +97,327 @@ export default function Bookings() {
     },
   });
 
-  // Update booking mutation
-  const updateBookingMutation = useMutation({
-    mutationFn: (data: any) => apiRequest("PUT", `/api/bookings/${data.id}`, data),
+  // Fetch bookings
+  const { data: bookings = [], isLoading: bookingsLoading } = useQuery({
+    queryKey: ['/api/bookings'],
+    enabled: isAuthenticated && !isLoading,
+  });
+
+  // Create booking mutation
+  const createBookingMutation = useMutation({
+    mutationFn: (data: BookingFormData) => apiRequest('POST', '/api/bookings', data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/bookings"] });
-      toast({
-        title: "Success",
-        description: "Booking updated successfully.",
-      });
-      setEditingBooking(null);
+      queryClient.invalidateQueries({ queryKey: ['/api/bookings'] });
+      toast({ title: "Success", description: "Booking created successfully!" });
+      form.reset();
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({
         title: "Error",
-        description: error.message || "Failed to update booking.",
+        description: error?.message || "Failed to create booking",
         variant: "destructive",
       });
     },
   });
 
-  const onSubmit = (data: any) => {
-    if (editingBooking) {
-      updateBookingMutation.mutate({ ...editingBooking, ...data });
-    }
-  };
+  // Update booking mutation
+  const updateBookingMutation = useMutation({
+    mutationFn: ({ id, ...data }: { id: string } & BookingFormData) => 
+      apiRequest('PUT', `/api/bookings/${id}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/bookings'] });
+      toast({ title: "Success", description: "Booking updated successfully!" });
+      setSelectedBooking(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error", 
+        description: error?.message || "Failed to update booking",
+        variant: "destructive",
+      });
+    },
+  });
 
-  // Calendar navigation
-  const navigateCalendar = (direction: 'prev' | 'next') => {
-    if (calendarView === 'month') {
-      setCurrentDate(direction === 'prev' ? subMonths(currentDate, 1) : addMonths(currentDate, 1));
-    } else if (calendarView === 'week') {
-      setCurrentDate(direction === 'prev' ? subWeeks(currentDate, 1) : addWeeks(currentDate, 1));
-    } else if (calendarView === 'year') {
-      const newYear = direction === 'prev' ? currentDate.getFullYear() - 1 : currentDate.getFullYear() + 1;
-      setCurrentDate(new Date(newYear, currentDate.getMonth(), 1));
-    }
-  };
-
-  // Get calendar dates based on view
-  const getCalendarDates = () => {
-    if (calendarView === 'month') {
-      const start = startOfWeek(startOfMonth(currentDate));
-      const end = endOfWeek(endOfMonth(currentDate));
-      return eachDayOfInterval({ start, end });
-    } else if (calendarView === 'week') {
-      const start = startOfWeek(currentDate);
-      const end = endOfWeek(currentDate);
-      return eachDayOfInterval({ start, end });
+  const onSubmit = (data: BookingFormData) => {
+    if (selectedBooking) {
+      updateBookingMutation.mutate({ id: selectedBooking.id, ...data });
     } else {
-      // Year view - show months
-      const months = [];
-      for (let i = 0; i < 12; i++) {
-        months.push(new Date(currentDate.getFullYear(), i, 1));
-      }
-      return months;
+      createBookingMutation.mutate(data);
     }
   };
 
-  // Get bookings for a specific date
+  // Today's bookings for quick view
+  const todaysBookings = Array.isArray(bookings) ? bookings.filter((booking: any) => {
+    const bookingDate = parseISO(booking.dateTime);
+    return isToday(bookingDate);
+  }) : [];
+
+  // Helper to get bookings for a specific date
   const getBookingsForDate = (date: Date) => {
-    if (!Array.isArray(bookings)) return [];
-    return bookings.filter((booking: any) => {
-      const bookingDate = booking.dateTime ? parseISO(booking.dateTime) : null;
+    return Array.isArray(bookings) ? bookings.filter((booking: any) => {
+      const bookingDate = parseISO(booking.dateTime);
       return bookingDate && isSameDay(bookingDate, date);
-    });
+    }) : [];
+  };
+
+  // Get booking colors based on service type and status
+  const getBookingColor = (booking: any) => {
+    const service = booking.service?.toLowerCase() || '';
+    const status = booking.status || 'pending';
+    
+    // Service-based colors
+    if (service.includes('diş') || service.includes('dental') || service.includes('tooth')) {
+      return status === 'confirmed' ? 'bg-blue-500 text-white border-blue-600' : 'bg-blue-200 text-blue-800 border-blue-300';
+    } else if (service.includes('göz') || service.includes('eye')) {
+      return status === 'confirmed' ? 'bg-green-500 text-white border-green-600' : 'bg-green-200 text-green-800 border-green-300';
+    } else if (service.includes('qalb') || service.includes('heart') || service.includes('kardio')) {
+      return status === 'confirmed' ? 'bg-red-500 text-white border-red-600' : 'bg-red-200 text-red-800 border-red-300';
+    } else if (service.includes('dəri') || service.includes('skin') || service.includes('dermato')) {
+      return status === 'confirmed' ? 'bg-purple-500 text-white border-purple-600' : 'bg-purple-200 text-purple-800 border-purple-300';
+    } else {
+      // Default colors based on status
+      switch (status) {
+        case 'confirmed': return 'bg-emerald-500 text-white border-emerald-600';
+        case 'pending': return 'bg-amber-200 text-amber-800 border-amber-300';
+        case 'cancelled': return 'bg-gray-400 text-white border-gray-500';
+        default: return 'bg-indigo-200 text-indigo-800 border-indigo-300';
+      }
+    }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'confirmed': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
-      case 'pending': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
-      case 'cancelled': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
-      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
+      case 'confirmed': return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200 border-emerald-200';
+      case 'pending': return 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 border-amber-200';
+      case 'cancelled': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 border-red-200';
+      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200 border-gray-200';
     }
   };
 
   if (isLoading || !isAuthenticated) {
     return (
       <div className="h-screen flex items-center justify-center">
-        <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" aria-label="Loading"/>
+        <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
       </div>
     );
   }
 
-  const calendarDates = getCalendarDates();
-  const currentDateFormat = calendarView === 'month' ? format(currentDate, 'MMMM yyyy') :
-                           calendarView === 'week' ? format(currentDate, 'MMM dd, yyyy') :
-                           format(currentDate, 'yyyy');
-
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
-      <Sidebar isOpen={sidebarOpen} onToggle={setSidebarOpen} />
-      
+    <div className="flex h-screen bg-background">
+      <Sidebar open={sidebarOpen} onOpenChange={setSidebarOpen} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <Header 
-          title="Booking Calendar"
-          subtitle="Manage and view all your appointments"
-        />
-        
-        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-background p-6">
-          {/* Calendar Controls */}
-          <div className="mb-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-            {/* View Toggle */}
-            <div className="flex items-center space-x-2">
-              <Button
-                variant={calendarView === 'month' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setCalendarView('month')}
-                data-testid="button-month-view"
-              >
-                Month
-              </Button>
-              <Button
-                variant={calendarView === 'week' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setCalendarView('week')}
-                data-testid="button-week-view"
-              >
-                Week
-              </Button>
-              <Button
-                variant={calendarView === 'year' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setCalendarView('year')}
-                data-testid="button-year-view"
-              >
-                Year
-              </Button>
+        <Header onMenuClick={() => setSidebarOpen(true)} />
+        <main className="flex-1 overflow-auto p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h1 className="text-2xl font-bold">Bookings & Calendar</h1>
+            
+            <div className="flex items-center gap-4">
+              <Select value={calendarView} onValueChange={(value) => setCalendarView(value as CalendarView)}>
+                <SelectTrigger className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="month">Month</SelectItem>
+                  <SelectItem value="week">Week</SelectItem>
+                  <SelectItem value="year">Year</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button data-testid="button-new-booking">
+                    <Plus className="h-4 w-4 mr-2" />
+                    New Booking
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Create New Booking</DialogTitle>
+                  </DialogHeader>
+                  <Form {...form}>
+                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                      <FormField
+                        control={form.control}
+                        name="service"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Service</FormLabel>
+                            <FormControl>
+                              <Input {...field} data-testid="input-service" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      
+                      <FormField
+                        control={form.control}
+                        name="dateTime"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Date & Time</FormLabel>
+                            <FormControl>
+                              <Input 
+                                type="datetime-local" 
+                                {...field} 
+                                data-testid="input-datetime"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      
+                      <FormField
+                        control={form.control}
+                        name="customerName"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Customer Name</FormLabel>
+                            <FormControl>
+                              <Input {...field} data-testid="input-customer-name" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      
+                      <FormField
+                        control={form.control}
+                        name="customerPhone"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Customer Phone</FormLabel>
+                            <FormControl>
+                              <Input {...field} data-testid="input-customer-phone" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      
+                      <FormField
+                        control={form.control}
+                        name="customerEmail"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Customer Email</FormLabel>
+                            <FormControl>
+                              <Input {...field} data-testid="input-customer-email" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      
+                      <FormField
+                        control={form.control}
+                        name="notes"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Notes</FormLabel>
+                            <FormControl>
+                              <Textarea {...field} data-testid="input-notes" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      
+                      <div className="flex justify-end space-x-2">
+                        <Button 
+                          type="submit" 
+                          disabled={createBookingMutation.isPending}
+                          data-testid="button-save-booking"
+                        >
+                          {createBookingMutation.isPending ? "Creating..." : "Create Booking"}
+                        </Button>
+                      </div>
+                    </form>
+                  </Form>
+                </DialogContent>
+              </Dialog>
             </div>
+          </div>
 
-            {/* Navigation */}
-            <div className="flex items-center space-x-4">
+          {/* Calendar Navigation */}
+          <Card className="mb-6">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentDate(subMonths(currentDate, 1))}
+                  data-testid="button-prev-month"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                
+                <h2 className="text-lg font-semibold">
+                  {format(currentDate, 'MMMM yyyy')}
+                </h2>
+                
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentDate(addMonths(currentDate, 1))}
+                  data-testid="button-next-month"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+              
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => navigateCalendar('prev')}
-                data-testid="button-prev-period"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              
-              <h2 className="text-xl font-semibold min-w-48 text-center" data-testid="text-current-period">
-                {currentDateFormat}
-              </h2>
-              
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigateCalendar('next')}
-                data-testid="button-next-period"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-              
-              <Button
                 onClick={() => setCurrentDate(new Date())}
-                size="sm"
+                className="mb-4"
                 data-testid="button-today"
               >
                 Today
               </Button>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
           {/* Calendar Grid */}
           <Card className="mb-6">
-            <CardContent className="p-6">
-              {calendarView === 'year' ? (
-                /* Year View - 12 Month Grid */
-                <div className="grid grid-cols-3 md:grid-cols-4 gap-4">
-                  {calendarDates.map((month, index) => {
-                    const monthBookings = Array.isArray(bookings) ? bookings.filter((booking: any) => {
-                      const bookingDate = booking.dateTime ? parseISO(booking.dateTime) : null;
-                      return bookingDate && 
-                             bookingDate.getMonth() === month.getMonth() && 
-                             bookingDate.getFullYear() === month.getFullYear();
-                    }).length : 0;
-
-                    return (
-                      <div 
-                        key={index} 
-                        className="p-4 border rounded-lg hover:bg-muted/30 cursor-pointer transition-colors"
-                        onClick={() => {
-                          setCurrentDate(month);
-                          setCalendarView('month');
-                        }}
-                        data-testid={`month-cell-${format(month, 'MMM')}`}
-                      >
-                        <div className="text-center">
-                          <div className="font-medium text-sm mb-2">
-                            {format(month, 'MMM')}
-                          </div>
-                          <div className="text-2xl text-muted-foreground">
-                            {monthBookings}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            bookings
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                /* Month/Week View - Calendar Grid */
+            <CardContent className="pt-6">
+              {calendarView === 'month' && (
                 <>
-                  {/* Week Day Headers */}
-                  <div className="grid grid-cols-7 gap-1 mb-2">
-                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                  {/* Days of Week Header */}
+                  <div className="grid grid-cols-7 gap-px mb-2">
+                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
                       <div key={day} className="p-2 text-center text-sm font-medium text-muted-foreground">
                         {day}
                       </div>
                     ))}
                   </div>
-
+                  
                   {/* Calendar Days */}
-                  <div className="grid grid-cols-7 gap-1">
-                    {calendarDates.map((date, index) => {
+                  <div className="grid grid-cols-7 gap-px">
+                    {eachDayOfInterval({
+                      start: startOfWeek(startOfMonth(currentDate)),
+                      end: endOfWeek(endOfMonth(currentDate))
+                    }).map((date) => {
                       const dayBookings = getBookingsForDate(date);
                       const isCurrentMonth = isSameMonth(date, currentDate);
                       const isSelected = selectedDate && isSameDay(date, selectedDate);
-
+                      const isToday = isSameDay(date, new Date());
+                      
                       return (
                         <div
-                          key={index}
-                          className={`
-                            min-h-24 p-1 border rounded-lg cursor-pointer transition-colors
-                            ${isSelected ? 'bg-primary/20 border-primary' : 'hover:bg-muted/30'}
-                            ${!isCurrentMonth ? 'opacity-50' : ''}
-                            ${isToday(date) ? 'bg-primary/10 border-primary/30' : ''}
-                          `}
-                          onClick={() => setSelectedDate(isSelected ? null : date)}
-                          data-testid={`calendar-day-${format(date, 'yyyy-MM-dd')}`}
+                          key={date.toISOString()}
+                          className={`min-h-[120px] p-2 border cursor-pointer transition-colors ${
+                            !isCurrentMonth 
+                              ? 'bg-muted/30 text-muted-foreground' 
+                              : isSelected
+                                ? 'bg-primary/20 border-primary'
+                                : isToday
+                                  ? 'bg-accent border-accent-foreground'
+                                  : 'bg-background hover:bg-muted/50'
+                          }`}
+                          onClick={() => setSelectedDate(date)}
+                          data-testid={`calendar-date-${format(date, 'yyyy-MM-dd')}`}
                         >
                           <div className="text-sm font-medium mb-1">
                             {format(date, 'd')}
@@ -323,10 +428,16 @@ export default function Bookings() {
                             {dayBookings.slice(0, 3).map((booking: any) => (
                               <div
                                 key={booking.id}
-                                className={`text-xs p-1 rounded truncate ${getStatusColor(booking.status)}`}
+                                className={`text-xs p-2 rounded-md cursor-pointer border transition-all hover:scale-105 hover:shadow-md ${getBookingColor(booking)}`}
                                 title={`${booking.service} - ${booking.customerName || 'Unknown'}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedBooking(booking);
+                                }}
+                                data-testid={`appointment-${booking.id}`}
                               >
-                                {format(parseISO(booking.dateTime), 'HH:mm')} {booking.service?.slice(0, 10) || 'Service'}
+                                <div className="font-medium">{format(parseISO(booking.dateTime), 'HH:mm')}</div>
+                                <div className="truncate">{booking.service?.slice(0, 12) || 'Service'}</div>
                               </div>
                             ))}
                             {dayBookings.length > 3 && (
@@ -363,153 +474,41 @@ export default function Bookings() {
                   ) : (
                     <div className="space-y-3">
                       {dayBookings.map((booking: any) => (
-                        <div key={booking.id} className="flex items-center justify-between p-4 border rounded-lg">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                              <Clock className="h-4 w-4 text-muted-foreground" />
-                              <span className="font-medium">
-                                {format(parseISO(booking.dateTime), 'HH:mm')}
-                              </span>
-                              <Badge variant="secondary" className={getStatusColor(booking.status)}>
-                                {booking.status}
-                              </Badge>
-                            </div>
-                            <div className="text-sm text-muted-foreground space-y-1">
-                              <div><strong>Service:</strong> {booking.service || 'N/A'}</div>
-                              <div><strong>Customer:</strong> {booking.customerName || 'Unknown'}</div>
-                              {booking.customerPhone && (
-                                <div><strong>Phone:</strong> {booking.customerPhone}</div>
-                              )}
-                              {booking.notes && (
-                                <div><strong>Notes:</strong> {booking.notes}</div>
-                              )}
+                        <div 
+                          key={booking.id} 
+                          className={`p-4 border-2 rounded-xl cursor-pointer transition-all hover:shadow-lg hover:scale-[1.02] ${getBookingColor(booking)}`}
+                          onClick={() => setSelectedBooking(booking)}
+                          data-testid={`booking-card-${booking.id}`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-3 mb-3">
+                                <div className="w-3 h-3 rounded-full bg-current opacity-80"></div>
+                                <span className="font-bold text-lg">
+                                  {format(parseISO(booking.dateTime), 'HH:mm')}
+                                </span>
+                                <Badge className={`${getStatusColor(booking.status)} font-medium`}>
+                                  {booking.status?.toUpperCase()}
+                                </Badge>
+                              </div>
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <MapPin className="h-4 w-4" />
+                                  <span className="font-medium">{booking.service || 'General Service'}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <User className="h-4 w-4" />
+                                  <span>{booking.customerName || 'Anonymous'}</span>
+                                </div>
+                                {booking.customerPhone && (
+                                  <div className="flex items-center gap-2">
+                                    <Phone className="h-4 w-4" />
+                                    <span>{booking.customerPhone}</span>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </div>
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={() => {
-                                  setEditingBooking(booking);
-                                  form.reset({
-                                    service: booking.service || "",
-                                    dateTime: booking.dateTime ? format(parseISO(booking.dateTime), "yyyy-MM-dd'T'HH:mm") : "",
-                                    customerName: booking.customerName || "",
-                                    customerPhone: booking.customerPhone || "",
-                                    customerEmail: booking.customerEmail || "",
-                                    notes: booking.notes || "",
-                                    status: booking.status || "pending",
-                                  });
-                                }}
-                                data-testid={`button-edit-${booking.id}`}
-                              >
-                                <Edit className="h-4 w-4 mr-1" />
-                                Edit
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent className="max-w-md">
-                              <DialogHeader>
-                                <DialogTitle>Edit Booking</DialogTitle>
-                              </DialogHeader>
-                              <Form {...form}>
-                                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                                  <FormField
-                                    control={form.control}
-                                    name="service"
-                                    render={({ field }) => (
-                                      <FormItem>
-                                        <FormLabel>Service</FormLabel>
-                                        <FormControl>
-                                          <Input {...field} data-testid="input-service" />
-                                        </FormControl>
-                                        <FormMessage />
-                                      </FormItem>
-                                    )}
-                                  />
-                                  
-                                  <FormField
-                                    control={form.control}
-                                    name="dateTime"
-                                    render={({ field }) => (
-                                      <FormItem>
-                                        <FormLabel>Date & Time</FormLabel>
-                                        <FormControl>
-                                          <Input 
-                                            type="datetime-local" 
-                                            {...field} 
-                                            data-testid="input-datetime"
-                                          />
-                                        </FormControl>
-                                        <FormMessage />
-                                      </FormItem>
-                                    )}
-                                  />
-                                  
-                                  <FormField
-                                    control={form.control}
-                                    name="customerName"
-                                    render={({ field }) => (
-                                      <FormItem>
-                                        <FormLabel>Customer Name</FormLabel>
-                                        <FormControl>
-                                          <Input {...field} data-testid="input-customer-name" />
-                                        </FormControl>
-                                        <FormMessage />
-                                      </FormItem>
-                                    )}
-                                  />
-                                  
-                                  <FormField
-                                    control={form.control}
-                                    name="status"
-                                    render={({ field }) => (
-                                      <FormItem>
-                                        <FormLabel>Status</FormLabel>
-                                        <Select onValueChange={field.onChange} value={field.value}>
-                                          <FormControl>
-                                            <SelectTrigger data-testid="select-status">
-                                              <SelectValue placeholder="Select status" />
-                                            </SelectTrigger>
-                                          </FormControl>
-                                          <SelectContent>
-                                            <SelectItem value="pending">Pending</SelectItem>
-                                            <SelectItem value="confirmed">Confirmed</SelectItem>
-                                            <SelectItem value="cancelled">Cancelled</SelectItem>
-                                          </SelectContent>
-                                        </Select>
-                                        <FormMessage />
-                                      </FormItem>
-                                    )}
-                                  />
-                                  
-                                  <FormField
-                                    control={form.control}
-                                    name="notes"
-                                    render={({ field }) => (
-                                      <FormItem>
-                                        <FormLabel>Notes</FormLabel>
-                                        <FormControl>
-                                          <Textarea {...field} data-testid="input-notes" />
-                                        </FormControl>
-                                        <FormMessage />
-                                      </FormItem>
-                                    )}
-                                  />
-                                  
-                                  <div className="flex justify-end space-x-2">
-                                    <Button 
-                                      type="submit" 
-                                      disabled={updateBookingMutation.isPending}
-                                      data-testid="button-save-booking"
-                                    >
-                                      {updateBookingMutation.isPending ? "Saving..." : "Save Changes"}
-                                    </Button>
-                                  </div>
-                                </form>
-                              </Form>
-                            </DialogContent>
-                          </Dialog>
                         </div>
                       ))}
                     </div>
@@ -517,6 +516,208 @@ export default function Bookings() {
                 })()}
               </CardContent>
             </Card>
+          )}
+
+          {/* Selected Appointment Details Modal */}
+          {selectedBooking && (
+            <Dialog open={!!selectedBooking} onOpenChange={() => setSelectedBooking(null)}>
+              <DialogContent className="max-w-lg">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <CalendarIcon className="h-5 w-5" />
+                    Appointment Details
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="space-y-6">
+                  {/* Time & Date */}
+                  <div className="flex items-center gap-4 p-4 bg-muted/30 rounded-lg">
+                    <Clock className="h-8 w-8 text-primary" />
+                    <div>
+                      <p className="text-2xl font-bold">
+                        {format(parseISO(selectedBooking.dateTime), 'HH:mm')}
+                      </p>
+                      <p className="text-muted-foreground">
+                        {format(parseISO(selectedBooking.dateTime), 'EEEE, MMMM d, yyyy')}
+                      </p>
+                    </div>
+                    <Badge className={`ml-auto ${getStatusColor(selectedBooking.status)}`}>
+                      {selectedBooking.status?.toUpperCase()}
+                    </Badge>
+                  </div>
+
+                  {/* Service & Customer */}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <MapPin className="h-5 w-5 text-muted-foreground" />
+                      <div>
+                        <p className="font-medium">Service</p>
+                        <p className="text-lg">{selectedBooking.service || 'General Consultation'}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <User className="h-5 w-5 text-muted-foreground" />
+                      <div>
+                        <p className="font-medium">Customer</p>
+                        <p className="text-lg">{selectedBooking.customerName || 'Anonymous'}</p>
+                      </div>
+                    </div>
+
+                    {selectedBooking.customerPhone && (
+                      <div className="flex items-center gap-3">
+                        <Phone className="h-5 w-5 text-muted-foreground" />
+                        <div>
+                          <p className="font-medium">Phone</p>
+                          <p className="text-lg">{selectedBooking.customerPhone}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedBooking.customerEmail && (
+                      <div className="flex items-center gap-3">
+                        <Mail className="h-5 w-5 text-muted-foreground" />
+                        <div>
+                          <p className="font-medium">Email</p>
+                          <p className="text-lg">{selectedBooking.customerEmail}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedBooking.notes && (
+                      <div className="p-4 bg-muted/20 rounded-lg">
+                        <p className="font-medium mb-2">Notes</p>
+                        <p className="text-muted-foreground">{selectedBooking.notes}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex gap-2">
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button 
+                          variant="outline"
+                          className="flex-1"
+                          onClick={() => {
+                            form.reset({
+                              service: selectedBooking.service || "",
+                              dateTime: selectedBooking.dateTime ? format(parseISO(selectedBooking.dateTime), "yyyy-MM-dd'T'HH:mm") : "",
+                              customerName: selectedBooking.customerName || "",
+                              customerPhone: selectedBooking.customerPhone || "",
+                              customerEmail: selectedBooking.customerEmail || "",
+                              notes: selectedBooking.notes || "",
+                              status: selectedBooking.status || "pending",
+                            });
+                          }}
+                          data-testid="button-edit-appointment"
+                        >
+                          <Edit className="h-4 w-4 mr-2" />
+                          Edit Appointment
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-md">
+                        <DialogHeader>
+                          <DialogTitle>Edit Booking</DialogTitle>
+                        </DialogHeader>
+                        <Form {...form}>
+                          <form onSubmit={(e) => {
+                            e.preventDefault();
+                            const formData = form.getValues();
+                            updateBookingMutation.mutate({ id: selectedBooking.id, ...formData });
+                          }} className="space-y-4">
+                            <FormField
+                              control={form.control}
+                              name="service"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Service</FormLabel>
+                                  <FormControl>
+                                    <Input {...field} data-testid="input-service" />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            
+                            <FormField
+                              control={form.control}
+                              name="dateTime"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Date & Time</FormLabel>
+                                  <FormControl>
+                                    <Input 
+                                      type="datetime-local" 
+                                      {...field} 
+                                      data-testid="input-datetime"
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            
+                            <FormField
+                              control={form.control}
+                              name="customerName"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Customer Name</FormLabel>
+                                  <FormControl>
+                                    <Input {...field} data-testid="input-customer-name" />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            
+                            <FormField
+                              control={form.control}
+                              name="status"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Status</FormLabel>
+                                  <Select onValueChange={field.onChange} value={field.value}>
+                                    <FormControl>
+                                      <SelectTrigger data-testid="select-status">
+                                        <SelectValue placeholder="Select status" />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      <SelectItem value="pending">Pending</SelectItem>
+                                      <SelectItem value="confirmed">Confirmed</SelectItem>
+                                      <SelectItem value="cancelled">Cancelled</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            
+                            <div className="flex justify-end space-x-2">
+                              <Button 
+                                type="submit" 
+                                disabled={updateBookingMutation.isPending}
+                                data-testid="button-save-booking"
+                              >
+                                {updateBookingMutation.isPending ? "Saving..." : "Save Changes"}
+                              </Button>
+                            </div>
+                          </form>
+                        </Form>
+                      </DialogContent>
+                    </Dialog>
+                    <Button 
+                      variant="secondary"
+                      className="flex-1"
+                      onClick={() => setSelectedBooking(null)}
+                    >
+                      Close
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
           )}
         </main>
       </div>
