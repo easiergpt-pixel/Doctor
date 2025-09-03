@@ -333,8 +333,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Telegram Webhook Handler
   app.post('/api/webhooks/telegram', async (req, res) => {
     try {
-      console.log('Telegram webhook received:', JSON.stringify(req.body, null, 2));
-      console.log('Processing webhook step by step...');
+      // Process Telegram webhook
       
       const update = req.body;
       
@@ -414,19 +413,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
       });
       
-      // Get conversation history for AI context - START FRESH for testing
-      console.log('Using clean conversation history for testing...');
-      const conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }> = [];
-      console.log('Clean conversation history length:', conversationHistory.length);
+      // Get conversation history for AI context
+      const messages = await storage.getMessagesByConversation(conversation.id);
+      // Filter out generic English responses but keep all other conversation context
+      const conversationHistory = messages.slice(-10)
+        .filter(m => 
+          m.content !== "I'm here to help! How can I assist you today!" &&
+          m.content.trim() !== "" &&
+          !m.content.includes("How can I assist you today")
+        )
+        .map(m => ({
+          role: m.sender === 'customer' ? 'user' as const : 'assistant' as const,
+          content: m.content,
+        }));
       
       // Generate AI response
-      console.log('Calling generateAIResponse...');
       const aiResponse = await generateAIResponse(
         channel.userId,
         messageText,
         conversationHistory
       );
-      console.log('AI response received:', aiResponse.message);
       
       // Store AI response
       await storage.createMessage({

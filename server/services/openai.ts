@@ -42,18 +42,9 @@ export async function generateAIResponse(
   businessContext?: string
 ): Promise<AIResponse> {
   try {
-    console.log('=== STARTING AI RESPONSE GENERATION ===');
-    console.log('User ID:', userId);
-    console.log('Customer message:', customerMessage);
-    
     // Get AI training data for this user
-    console.log('Fetching training data...');
     const trainingData = await storage.getAiTrainingByUser(userId);
-    console.log('Training data count:', trainingData.length);
-    
-    console.log('Fetching user data...');
     const user = await storage.getUser(userId);
-    console.log('User language preference:', user?.preferredLanguage);
 
     const businessInfo = businessContext || `
       Business: ${user?.businessName || 'AI Receptionist Service'}
@@ -116,9 +107,6 @@ Guidelines:
       { role: "user" as const, content: customerMessage }
     ];
 
-    console.log('Sending request to OpenAI with messages:', JSON.stringify(messages, null, 2));
-    
-    console.log('Making OpenAI API call...');
     const response = await openai.chat.completions.create({
       model: "gpt-4o", // Using gpt-4o instead of gpt-5 as it's more stable
       messages,
@@ -126,12 +114,9 @@ Guidelines:
       max_completion_tokens: 500,
     });
     
-    console.log('OpenAI response received:', response.choices[0].message.content);
-    
     let aiResponse;
     try {
       aiResponse = JSON.parse(response.choices[0].message.content || '{}');
-      console.log('Parsed AI response:', aiResponse);
     } catch (parseError) {
       console.error('JSON parsing failed:', parseError);
       console.error('Raw response:', response.choices[0].message.content);
