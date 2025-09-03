@@ -253,6 +253,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.put('/api/channels/:id/config', isAuthenticated, async (req: any, res) => {
+    try {
+      const channelId = req.params.id;
+      const { config } = req.body;
+      const userId = req.user.claims.sub;
+
+      // Verify the channel belongs to the user
+      const channel = await storage.getChannel(channelId);
+      if (!channel || channel.userId !== userId) {
+        return res.status(404).json({ message: "Channel not found" });
+      }
+
+      await storage.updateChannelConfig(channelId, config);
+      res.json({ message: "Channel configuration updated successfully" });
+    } catch (error) {
+      console.error("Error updating channel config:", error);
+      res.status(500).json({ message: "Failed to update channel configuration" });
+    }
+  });
+
   app.post('/api/channels', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;

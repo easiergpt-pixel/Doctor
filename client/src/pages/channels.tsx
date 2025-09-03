@@ -40,6 +40,7 @@ export default function Channels() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [selectedChannel, setSelectedChannel] = useState<any>(null);
+  const [configValues, setConfigValues] = useState<any>({});
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -97,7 +98,79 @@ export default function Channels() {
 
   const handleConfigureChannel = (channel: any) => {
     setSelectedChannel(channel);
+    // Initialize with existing config or empty values
+    setConfigValues(channel.config || {});
     setConfigDialogOpen(true);
+  };
+
+  const handleConfigValueChange = (key: string, value: string) => {
+    setConfigValues((prev: any) => ({
+      ...prev,
+      [key]: value
+    }));
+  };
+
+  const saveConfiguration = async () => {
+    try {
+      await apiRequest("PUT", `/api/channels/${selectedChannel.id}/config`, {
+        config: configValues
+      });
+      
+      toast({
+        title: "Configuration Saved",
+        description: `${selectedChannel.name} channel settings have been updated`,
+      });
+      
+      // Refresh channels list
+      queryClient.invalidateQueries({ queryKey: ["/api/channels"] });
+      setConfigDialogOpen(false);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: "Failed to save configuration: " + error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const getConfigFields = (channelType: string) => {
+    switch (channelType) {
+      case 'whatsapp':
+        return [
+          { key: 'accessToken', label: 'WhatsApp Business API Access Token', type: 'password', placeholder: 'Enter your permanent access token' },
+          { key: 'phoneNumberId', label: 'Phone Number ID', type: 'text', placeholder: 'Your WhatsApp Business phone number ID' },
+          { key: 'verifyToken', label: 'Webhook Verify Token', type: 'text', placeholder: 'Custom verification token' },
+          { key: 'businessAccountId', label: 'Business Account ID', type: 'text', placeholder: 'Your WhatsApp Business Account ID' }
+        ];
+      case 'facebook':
+        return [
+          { key: 'pageAccessToken', label: 'Page Access Token', type: 'password', placeholder: 'Generate from Facebook Developers' },
+          { key: 'pageId', label: 'Facebook Page ID', type: 'text', placeholder: 'Your Facebook Page ID' },
+          { key: 'appSecret', label: 'App Secret', type: 'password', placeholder: 'Your Facebook App Secret' },
+          { key: 'verifyToken', label: 'Webhook Verify Token', type: 'text', placeholder: 'Custom verification token' }
+        ];
+      case 'instagram':
+        return [
+          { key: 'pageAccessToken', label: 'Page Access Token (with Instagram permissions)', type: 'password', placeholder: 'Token from Meta for Developers' },
+          { key: 'instagramAccountId', label: 'Instagram Business Account ID', type: 'text', placeholder: 'Your Instagram Business Account ID' },
+          { key: 'pageId', label: 'Connected Facebook Page ID', type: 'text', placeholder: 'Facebook Page linked to Instagram' },
+          { key: 'verifyToken', label: 'Webhook Verify Token', type: 'text', placeholder: 'Custom verification token' }
+        ];
+      case 'website':
+        return [
+          { key: 'widgetTitle', label: 'Chat Widget Title', type: 'text', placeholder: 'e.g., "Chat with us!"' },
+          { key: 'welcomeMessage', label: 'Welcome Message', type: 'textarea', placeholder: 'Hi! How can I help you today?' },
+          { key: 'primaryColor', label: 'Primary Color', type: 'color', placeholder: '#007bff' },
+          { key: 'position', label: 'Widget Position', type: 'select', options: [
+            { value: 'bottom-right', label: 'Bottom Right' },
+            { value: 'bottom-left', label: 'Bottom Left' },
+            { value: 'top-right', label: 'Top Right' },
+            { value: 'top-left', label: 'Top Left' }
+          ]}
+        ];
+      default:
+        return [];
+    }
   };
 
   const getConfigurationSteps = (channelType: string) => {
@@ -306,17 +379,67 @@ export default function Channels() {
                         </div>
 
                         <div>
-                          <h4 className="font-semibold mb-3">Configuration Steps:</h4>
-                          <ol className="space-y-3">
-                            {getConfigurationSteps(selectedChannel.type).map((step, index) => (
-                              <li key={index} className="flex items-start space-x-3">
-                                <span className="flex-shrink-0 w-6 h-6 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-sm font-medium">
-                                  {index + 1}
-                                </span>
-                                <span className="text-sm">{step}</span>
-                              </li>
+                          <h4 className="font-semibold mb-3">Configuration Fields:</h4>
+                          <div className="space-y-4">
+                            {getConfigFields(selectedChannel.type).map((field) => (
+                              <div key={field.key}>
+                                <label className="block text-sm font-medium mb-1">{field.label}</label>
+                                {field.type === 'textarea' ? (
+                                  <Textarea
+                                    value={configValues[field.key] || ''}
+                                    onChange={(e) => handleConfigValueChange(field.key, e.target.value)}
+                                    placeholder={field.placeholder}
+                                    className="w-full"
+                                  />
+                                ) : field.type === 'select' ? (
+                                  <Select
+                                    value={configValues[field.key] || ''}
+                                    onValueChange={(value) => handleConfigValueChange(field.key, value)}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue placeholder={field.placeholder} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {field.options?.map((option) => (
+                                        <SelectItem key={option.value} value={option.value}>
+                                          {option.label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                ) : (
+                                  <Input
+                                    type={field.type}
+                                    value={configValues[field.key] || ''}
+                                    onChange={(e) => handleConfigValueChange(field.key, e.target.value)}
+                                    placeholder={field.placeholder}
+                                    className="w-full"
+                                  />
+                                )}
+                              </div>
                             ))}
-                          </ol>
+                          </div>
+                        </div>
+
+                        {/* Configuration Instructions (Collapsible) */}
+                        <div>
+                          <details className="group">
+                            <summary className="cursor-pointer font-semibold text-sm text-muted-foreground hover:text-foreground">
+                              ▶ View Setup Instructions
+                            </summary>
+                            <div className="mt-3 space-y-2">
+                              <ol className="space-y-2">
+                                {getConfigurationSteps(selectedChannel.type).map((step, index) => (
+                                  <li key={index} className="flex items-start space-x-2">
+                                    <span className="flex-shrink-0 w-5 h-5 bg-muted text-muted-foreground rounded-full flex items-center justify-center text-xs font-medium">
+                                      {index + 1}
+                                    </span>
+                                    <span className="text-xs text-muted-foreground">{step}</span>
+                                  </li>
+                                ))}
+                              </ol>
+                            </div>
+                          </details>
                         </div>
 
                         {selectedChannel.type === 'website' && (
@@ -367,13 +490,8 @@ export default function Channels() {
                             Close
                           </Button>
                           <Button 
-                            onClick={() => {
-                              toast({
-                                title: "Configuration Saved",
-                                description: `${selectedChannel.name} channel settings have been updated`,
-                              });
-                              setConfigDialogOpen(false);
-                            }}
+                            onClick={saveConfiguration}
+                            disabled={Object.keys(configValues).length === 0}
                           >
                             Save Configuration
                           </Button>

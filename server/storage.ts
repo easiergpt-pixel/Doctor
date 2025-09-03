@@ -59,8 +59,10 @@ export interface IStorage {
 
   // Channel operations
   createChannel(channel: InsertChannel): Promise<Channel>;
+  getChannel(id: string): Promise<Channel | undefined>;
   getChannelsByUser(userId: string): Promise<Channel[]>;
   updateChannelStatus(id: string, isActive: boolean): Promise<void>;
+  updateChannelConfig(id: string, config: any): Promise<void>;
 
   // AI Training operations
   createAiTraining(training: InsertAiTraining): Promise<AiTraining>;
@@ -239,8 +241,20 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(channels).where(eq(channels.userId, userId));
   }
 
+  async getChannel(id: string): Promise<Channel | undefined> {
+    const [channel] = await db.select().from(channels).where(eq(channels.id, id));
+    return channel;
+  }
+
   async updateChannelStatus(id: string, isActive: boolean): Promise<void> {
     await db.update(channels).set({ isActive }).where(eq(channels.id, id));
+  }
+
+  async updateChannelConfig(id: string, config: any): Promise<void> {
+    await db.update(channels).set({ 
+      config: config,
+      updatedAt: new Date() 
+    }).where(eq(channels.id, id));
   }
 
   // AI Training operations
