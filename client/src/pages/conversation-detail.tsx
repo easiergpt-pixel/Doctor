@@ -36,7 +36,7 @@ export default function ConversationDetail() {
   }, [isAuthenticated, isLoading, toast]);
 
   const { data: conversation, isLoading: conversationLoading } = useQuery({
-    queryKey: ["/api/conversations", conversationId],
+    queryKey: [`/api/conversations/${conversationId}`],
     enabled: isAuthenticated && !!conversationId,
   });
 

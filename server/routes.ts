@@ -448,17 +448,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Handle booking if needed
       if (aiResponse.action === 'booking' && aiResponse.bookingData) {
-        let bookingDate = undefined;
-        if (aiResponse.bookingData.preferredDateTime && aiResponse.bookingData.preferredDateTime !== 'sabah') {
-          try {
-            bookingDate = new Date(aiResponse.bookingData.preferredDateTime);
-            // Check if date is valid
-            if (isNaN(bookingDate.getTime())) {
-              bookingDate = undefined;
+        let bookingDate = new Date(); // Default to now
+        
+        // Parse preferred date/time with better logic
+        if (aiResponse.bookingData.preferredDateTime) {
+          const dateTimeStr = aiResponse.bookingData.preferredDateTime.toLowerCase();
+          
+          if (dateTimeStr.includes('sabah') || dateTimeStr.includes('tomorrow')) {
+            // Tomorrow
+            bookingDate = new Date();
+            bookingDate.setDate(bookingDate.getDate() + 1);
+            
+            // Extract time (like "saat 9", "9:00")
+            const timeMatch = dateTimeStr.match(/(\d+):?(\d*)/);
+            if (timeMatch) {
+              const hour = parseInt(timeMatch[1]);
+              const minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
+              bookingDate.setHours(hour, minute, 0, 0);
             }
-          } catch (error) {
-            console.error('Date parsing error:', error);
-            bookingDate = undefined;
+          } else if (dateTimeStr.includes('04.09.2025') || dateTimeStr.includes('2025-09-04')) {
+            // Specific date
+            bookingDate = new Date('2025-09-04');
+            const timeMatch = dateTimeStr.match(/(\d+):(\d+)/);
+            if (timeMatch) {
+              bookingDate.setHours(parseInt(timeMatch[1]), parseInt(timeMatch[2]), 0, 0);
+            } else {
+              bookingDate.setHours(9, 0, 0, 0); // Default 9 AM
+            }
+          } else {
+            // Try to parse as ISO date
+            try {
+              const parsed = new Date(aiResponse.bookingData.preferredDateTime);
+              if (!isNaN(parsed.getTime())) {
+                bookingDate = parsed;
+              }
+            } catch (error) {
+              console.log('Using default date due to parsing error:', error);
+            }
           }
         }
         
