@@ -108,9 +108,9 @@ export default function Billing() {
   const currentUsage = Math.min(estimatedMonthlyUsage, monthlyLimit);
   const usagePercentage = Math.min((currentUsage / monthlyLimit) * 100, 100);
   
-  // Calculate monthly cost based on actual usage
+  // Calculate monthly cost based on subscription
   const dailyCost = parseFloat((stats as any)?.cost || "0.00");
-  const estimatedMonthlyCost = dailyCost * 30;
+  const subscriptionMonthlyCost = isSubscribed ? 49.99 : 0;
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -160,7 +160,7 @@ export default function Billing() {
                         <p className="text-sm text-muted-foreground">Total Conversations</p>
                       </div>
                       <div className="text-center p-4 bg-muted/30 rounded-lg">
-                        <p className="text-2xl font-bold text-foreground">${estimatedMonthlyCost.toFixed(2)}</p>
+                        <p className="text-2xl font-bold text-foreground">${subscriptionMonthlyCost.toFixed(2)}</p>
                         <p className="text-sm text-muted-foreground">Estimated Monthly Cost</p>
                       </div>
                     </div>
@@ -290,19 +290,19 @@ export default function Billing() {
                           <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                             <div className="flex justify-between items-center">
                               <span className="text-sm font-medium">Telegram Messages</span>
-                              <span className="text-sm">{Math.floor(currentUsage * 0.7).toLocaleString()}</span>
+                              <span className="text-sm">{currentUsage.toLocaleString()}</span>
                             </div>
                           </div>
-                          <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                          <div className="p-3 bg-gray-50 dark:bg-gray-900/20 rounded-lg opacity-50">
                             <div className="flex justify-between items-center">
                               <span className="text-sm font-medium">WhatsApp Messages</span>
-                              <span className="text-sm">{Math.floor(currentUsage * 0.2).toLocaleString()}</span>
+                              <span className="text-sm">0</span>
                             </div>
                           </div>
-                          <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                          <div className="p-3 bg-gray-50 dark:bg-gray-900/20 rounded-lg opacity-50">
                             <div className="flex justify-between items-center">
                               <span className="text-sm font-medium">Website Chat</span>
-                              <span className="text-sm">{Math.floor(currentUsage * 0.1).toLocaleString()}</span>
+                              <span className="text-sm">0</span>
                             </div>
                           </div>
                         </div>
@@ -573,8 +573,8 @@ Thank you for using AI Receptionist!
                   </div>
                   <div className="text-center p-4 border border-border rounded-lg">
                     <Calendar className="h-8 w-8 text-chart-4 mx-auto mb-2" />
-                    <p className="text-2xl font-bold text-foreground">{Math.ceil((monthlyLimit - currentUsage) / 30)}</p>
-                    <p className="text-sm text-muted-foreground">Avg. Daily Budget</p>
+                    <p className="text-2xl font-bold text-foreground">{Math.max(0, monthlyLimit - currentUsage).toLocaleString()}</p>
+                    <p className="text-sm text-muted-foreground">Messages Remaining</p>
                   </div>
                 </div>
               </CardContent>
