@@ -488,6 +488,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           status: 'active',
           lastMessageAt: new Date(),
         });
+        
+        // Notify real-time clients about new conversation
+        realtimeService.notifyNewConversation(channel.userId, conversation);
       }
       
       // Store customer message

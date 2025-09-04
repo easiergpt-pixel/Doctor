@@ -221,7 +221,7 @@ export default function Bookings() {
           subtitle="Manage appointments and calendar view"
           onMenuToggle={() => setSidebarOpen(true)} 
         />
-        <main className="flex-1 overflow-auto p-6">
+        <main className="flex-1 overflow-y-auto p-6">
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-2xl font-bold">Bookings & Calendar</h1>
             
@@ -395,7 +395,7 @@ export default function Bookings() {
 
           {/* Colorful Calendar Grid */}
           <Card className="mb-6 bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950 border-2">
-            <CardContent className="pt-6">
+            <CardContent className="pt-6 max-h-[600px] overflow-y-auto">
               {calendarView === 'month' && (
                 <>
                   {/* Days of Week Header */}
