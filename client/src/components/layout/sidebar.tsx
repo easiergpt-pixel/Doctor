@@ -121,21 +121,14 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
     enabled: isAuthenticated,
   });
   
-  // Calculate dynamic counts - debug and simplify
-  console.log('Debug: conversations data:', conversations);
-  console.log('Debug: bookings data:', bookings);
-  
+  // Calculate dynamic counts
   // For now, show 0 for conversations until we implement proper read/unread tracking
   const unreadConversations = 0;
   
   // Only count truly pending bookings
   const pendingBookings = Array.isArray(bookings) ? bookings.filter((b: any) => {
-    console.log('Debug: booking status:', b.status);
     return b.status === 'pending';
   }).length : 0;
-  
-  console.log('Debug: unread conversations:', unreadConversations);
-  console.log('Debug: pending bookings:', pendingBookings);
   
   const navigationItems = getNavigationItems(unreadConversations, pendingBookings);
 
