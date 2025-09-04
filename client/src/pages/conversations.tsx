@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
+import { useWebSocket } from "@/hooks/useWebSocket";
+import { queryClient } from "@/lib/queryClient";
 import Sidebar from "@/components/layout/sidebar";
 import Header from "@/components/layout/header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,6 +20,7 @@ export default function Conversations() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [, setLocation] = useLocation();
+  const { lastMessage } = useWebSocket();
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -38,10 +41,27 @@ export default function Conversations() {
     enabled: isAuthenticated,
   });
 
+  // Listen for new conversations and invalidate cache
+  useEffect(() => {
+    if (lastMessage?.type === 'new_conversation') {
+      console.log('New conversation received, refreshing list...');
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+    }
+  }, [lastMessage]);
+
   const filteredConversations = Array.isArray(conversations) 
-    ? conversations.filter((conv: any) =>
-        conv.channel?.toLowerCase().includes(searchTerm.toLowerCase())
-      ) 
+    ? conversations.filter((conv: any) => {
+        if (!searchTerm) return true;
+        const search = searchTerm.toLowerCase();
+        return (
+          conv.channel?.toLowerCase().includes(search) ||
+          conv.channelName?.toLowerCase().includes(search) ||
+          conv.channelType?.toLowerCase().includes(search) ||
+          conv.customerId?.toLowerCase().includes(search) ||
+          conv.id?.toLowerCase().includes(search) ||
+          conv.status?.toLowerCase().includes(search)
+        );
+      })
     : [];
 
   if (isLoading || !isAuthenticated) {
