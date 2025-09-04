@@ -24,6 +24,7 @@ export default function Billing() {
   const { toast } = useToast();
   const { user, isAuthenticated, isLoading } = useAuth();
   const queryClient = useQueryClient();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -85,20 +86,21 @@ export default function Billing() {
     );
   }
 
-  const isSubscribed = user?.subscriptionStatus === 'active';
+  const isSubscribed = (user as any)?.subscriptionStatus === 'active';
   const currentPlan = isSubscribed ? 'Professional' : 'Free Trial';
   const monthlyLimit = isSubscribed ? 5000 : 100;
-  const currentUsage = stats?.tokensUsed || 0;
+  const currentUsage = (stats as any)?.tokensUsed || 0;
   const usagePercentage = Math.min((currentUsage / monthlyLimit) * 100, 100);
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      <Sidebar />
+      <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
       
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header 
           title="Billing & Subscription" 
           subtitle="Manage your subscription and monitor usage"
+          onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
         />
         
         <main className="flex-1 overflow-y-auto">
@@ -134,11 +136,11 @@ export default function Billing() {
                     
                     <div className="grid grid-cols-2 gap-4 mt-6">
                       <div className="text-center p-4 bg-muted/30 rounded-lg">
-                        <p className="text-2xl font-bold text-foreground">{stats?.totalConversations || 0}</p>
+                        <p className="text-2xl font-bold text-foreground">{(stats as any)?.totalConversations || 0}</p>
                         <p className="text-sm text-muted-foreground">Total Conversations</p>
                       </div>
                       <div className="text-center p-4 bg-muted/30 rounded-lg">
-                        <p className="text-2xl font-bold text-foreground">${stats?.cost || "0.00"}</p>
+                        <p className="text-2xl font-bold text-foreground">${(stats as any)?.cost || "0.00"}</p>
                         <p className="text-sm text-muted-foreground">This Month Cost</p>
                       </div>
                     </div>
@@ -274,7 +276,7 @@ export default function Billing() {
                     </ul>
                     
                     <Button variant="outline" className="w-full mt-6" data-testid="button-starter">
-                      {currentPlan === 'Starter' ? 'Current Plan' : 'Select Plan'}
+                      Select Plan
                     </Button>
                   </div>
 
@@ -378,12 +380,12 @@ export default function Billing() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="text-center p-4 border border-border rounded-lg">
                     <DollarSign className="h-8 w-8 text-chart-1 mx-auto mb-2" />
-                    <p className="text-2xl font-bold text-foreground">${stats?.cost || "0.00"}</p>
+                    <p className="text-2xl font-bold text-foreground">${(stats as any)?.cost || "0.00"}</p>
                     <p className="text-sm text-muted-foreground">Current Month Cost</p>
                   </div>
                   <div className="text-center p-4 border border-border rounded-lg">
                     <Clock className="h-8 w-8 text-chart-2 mx-auto mb-2" />
-                    <p className="text-2xl font-bold text-foreground">{stats?.tokensUsed || 0}</p>
+                    <p className="text-2xl font-bold text-foreground">{(stats as any)?.tokensUsed || 0}</p>
                     <p className="text-sm text-muted-foreground">AI Tokens Used</p>
                   </div>
                   <div className="text-center p-4 border border-border rounded-lg">
