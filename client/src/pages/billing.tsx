@@ -98,8 +98,19 @@ export default function Billing() {
   const isSubscribed = (user as any)?.subscriptionStatus === 'active';
   const currentPlan = isSubscribed ? 'Professional' : 'Free Trial';
   const monthlyLimit = isSubscribed ? 5000 : 100;
-  const currentUsage = (stats as any)?.tokensUsed || 0;
+  
+  // Calculate actual monthly usage from conversations and messages
+  const dailyTokens = (stats as any)?.tokensUsed || 0;
+  const totalConversations = (stats as any)?.totalConversations || 0;
+  
+  // Estimate monthly usage based on conversations (assuming avg 10 messages per conversation)
+  const estimatedMonthlyUsage = Math.max(totalConversations * 10, dailyTokens * 30);
+  const currentUsage = Math.min(estimatedMonthlyUsage, monthlyLimit);
   const usagePercentage = Math.min((currentUsage / monthlyLimit) * 100, 100);
+  
+  // Calculate monthly cost based on actual usage
+  const dailyCost = parseFloat((stats as any)?.cost || "0.00");
+  const estimatedMonthlyCost = dailyCost * 30;
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -149,8 +160,8 @@ export default function Billing() {
                         <p className="text-sm text-muted-foreground">Total Conversations</p>
                       </div>
                       <div className="text-center p-4 bg-muted/30 rounded-lg">
-                        <p className="text-2xl font-bold text-foreground">${(stats as any)?.cost || "0.00"}</p>
-                        <p className="text-sm text-muted-foreground">This Month Cost</p>
+                        <p className="text-2xl font-bold text-foreground">${estimatedMonthlyCost.toFixed(2)}</p>
+                        <p className="text-sm text-muted-foreground">Estimated Monthly Cost</p>
                       </div>
                     </div>
                   </div>
@@ -442,7 +453,7 @@ Thank you for using AI Receptionist!
                     <div className="text-center">
                       <h3 className="text-lg font-semibold text-foreground">Professional</h3>
                       <div className="text-3xl font-bold text-foreground mt-2">
-                        $79<span className="text-lg text-muted-foreground">/mo</span>
+                        $49.99<span className="text-lg text-muted-foreground">/mo</span>
                       </div>
                       <p className="text-muted-foreground mt-2">For growing businesses</p>
                     </div>
@@ -557,8 +568,8 @@ Thank you for using AI Receptionist!
                   </div>
                   <div className="text-center p-4 border border-border rounded-lg">
                     <Clock className="h-8 w-8 text-chart-2 mx-auto mb-2" />
-                    <p className="text-2xl font-bold text-foreground">{(stats as any)?.tokensUsed || 0}</p>
-                    <p className="text-sm text-muted-foreground">AI Tokens Used</p>
+                    <p className="text-2xl font-bold text-foreground">{dailyTokens.toLocaleString()}</p>
+                    <p className="text-sm text-muted-foreground">Daily AI Tokens</p>
                   </div>
                   <div className="text-center p-4 border border-border rounded-lg">
                     <Calendar className="h-8 w-8 text-chart-4 mx-auto mb-2" />
