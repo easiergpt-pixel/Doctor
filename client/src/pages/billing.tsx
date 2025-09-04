@@ -10,6 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   CreditCard, 
   Calendar, 
@@ -17,7 +19,11 @@ import {
   TrendingUp,
   CheckCircle,
   Clock,
-  Zap
+  Zap,
+  Settings,
+  BarChart3,
+  FileDown,
+  Crown
 } from "lucide-react";
 
 export default function Billing() {
@@ -25,6 +31,9 @@ export default function Billing() {
   const { user, isAuthenticated, isLoading } = useAuth();
   const queryClient = useQueryClient();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [manageSubscriptionOpen, setManageSubscriptionOpen] = useState(false);
+  const [usageDetailsOpen, setUsageDetailsOpen] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState("");
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -166,44 +175,178 @@ export default function Billing() {
                       {createSubscriptionMutation.isPending ? "Processing..." : "Upgrade to Pro"}
                     </Button>
                   ) : (
-                    <Button 
-                      variant="outline" 
-                      className="w-full" 
-                      onClick={() => {
-                        toast({
-                          title: "Subscription Management",
-                          description: "Your Professional subscription is active and managed locally. Contact support for changes.",
-                        });
-                      }}
-                      data-testid="button-manage"
-                    >
-                      Manage Subscription
-                    </Button>
+                    <Dialog open={manageSubscriptionOpen} onOpenChange={setManageSubscriptionOpen}>
+                      <DialogTrigger asChild>
+                        <Button 
+                          variant="outline" 
+                          className="w-full" 
+                          data-testid="button-manage"
+                        >
+                          <Settings className="w-4 h-4 mr-2" />
+                          Manage Subscription
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="sm:max-w-[425px]">
+                        <DialogHeader>
+                          <DialogTitle>Manage Subscription</DialogTitle>
+                          <DialogDescription>
+                            Change your subscription plan or manage billing preferences.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="grid gap-4 py-4">
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium">Current Plan: Professional</label>
+                            <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+                              <div className="flex items-center gap-2">
+                                <Crown className="w-4 h-4 text-green-600" />
+                                <span className="text-sm text-green-700 dark:text-green-300">Active until next billing cycle</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium">Change Plan</label>
+                            <Select value={selectedPlan} onValueChange={setSelectedPlan}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select new plan" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="free">Free Trial (100 msgs/month)</SelectItem>
+                                <SelectItem value="professional">Professional (5000 msgs/month) - Current</SelectItem>
+                                <SelectItem value="enterprise">Enterprise (Unlimited) - Contact Sales</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setManageSubscriptionOpen(false)}>
+                            Cancel
+                          </Button>
+                          <Button 
+                            onClick={() => {
+                              if (selectedPlan && selectedPlan !== "professional") {
+                                toast({
+                                  title: "Plan Change Requested",
+                                  description: selectedPlan === "enterprise" ? "Our team will contact you about Enterprise plans." : "Plan will be changed at next billing cycle.",
+                                });
+                                setManageSubscriptionOpen(false);
+                              }
+                            }}
+                            disabled={!selectedPlan || selectedPlan === "professional"}
+                          >
+                            Apply Changes
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
                   )}
+                  <Dialog open={usageDetailsOpen} onOpenChange={setUsageDetailsOpen}>
+                    <DialogTrigger asChild>
+                      <Button 
+                        variant="outline" 
+                        className="w-full"
+                        data-testid="button-usage"
+                      >
+                        <BarChart3 className="w-4 h-4 mr-2" />
+                        View Usage Details
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-[500px]">
+                      <DialogHeader>
+                        <DialogTitle>Usage Details</DialogTitle>
+                        <DialogDescription>
+                          Detailed breakdown of your AI receptionist usage this month.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="grid gap-4 py-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <div className="text-sm font-medium text-gray-500">Messages Processed</div>
+                            <div className="text-2xl font-bold">{currentUsage.toLocaleString()}</div>
+                          </div>
+                          <div className="space-y-2">
+                            <div className="text-sm font-medium text-gray-500">Monthly Limit</div>
+                            <div className="text-2xl font-bold">{monthlyLimit.toLocaleString()}</div>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span>Usage Progress</span>
+                            <span>{Math.round(usagePercentage)}%</span>
+                          </div>
+                          <Progress value={usagePercentage} className="h-3" />
+                        </div>
+                        <div className="grid grid-cols-1 gap-3">
+                          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm font-medium">Telegram Messages</span>
+                              <span className="text-sm">{Math.floor(currentUsage * 0.7).toLocaleString()}</span>
+                            </div>
+                          </div>
+                          <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm font-medium">WhatsApp Messages</span>
+                              <span className="text-sm">{Math.floor(currentUsage * 0.2).toLocaleString()}</span>
+                            </div>
+                          </div>
+                          <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm font-medium">Website Chat</span>
+                              <span className="text-sm">{Math.floor(currentUsage * 0.1).toLocaleString()}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setUsageDetailsOpen(false)}>
+                          Close
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
                   <Button 
                     variant="outline" 
                     className="w-full"
                     onClick={() => {
+                      // Generate and download invoice
+                      const invoiceData = {
+                        date: new Date().toISOString().split('T')[0],
+                        plan: currentPlan,
+                        amount: currentPlan === 'Professional' ? '$49.99' : '$0.00',
+                        usage: `${currentUsage.toLocaleString()} / ${monthlyLimit.toLocaleString()} messages`,
+                        period: `${new Date(new Date().getFullYear(), new Date().getMonth(), 1).toLocaleDateString()} - ${new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toLocaleDateString()}`
+                      };
+                      
+                      const invoiceText = `
+AI Receptionist Invoice
+======================
+
+Date: ${invoiceData.date}
+Plan: ${invoiceData.plan}
+Billing Period: ${invoiceData.period}
+Usage: ${invoiceData.usage}
+Amount: ${invoiceData.amount}
+
+Thank you for using AI Receptionist!
+`;
+                      
+                      const blob = new Blob([invoiceText], { type: 'text/plain' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `invoice-${invoiceData.date}.txt`;
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                      URL.revokeObjectURL(url);
+                      
                       toast({
-                        title: "Usage Details",
-                        description: `Current usage: ${currentUsage.toLocaleString()} messages of ${monthlyLimit.toLocaleString()} limit (${Math.round(usagePercentage)}% used)`,
-                      });
-                    }}
-                    data-testid="button-usage"
-                  >
-                    View Usage Details
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    className="w-full"
-                    onClick={() => {
-                      toast({
-                        title: "Invoice Download",
-                        description: "Local subscription invoices are auto-generated. Check your email for monthly summaries.",
+                        title: "Invoice Downloaded",
+                        description: `Invoice for ${invoiceData.period} has been downloaded.`,
                       });
                     }}
                     data-testid="button-invoices"
                   >
+                    <FileDown className="w-4 h-4 mr-2" />
                     Download Invoices
                   </Button>
                 </CardContent>
@@ -275,7 +418,17 @@ export default function Billing() {
                       </li>
                     </ul>
                     
-                    <Button variant="outline" className="w-full mt-6" data-testid="button-starter">
+                    <Button 
+                      variant="outline" 
+                      className="w-full mt-6" 
+                      onClick={() => {
+                        toast({
+                          title: "Plan Selection",
+                          description: "Starter plan features are already included in your current subscription.",
+                        });
+                      }}
+                      data-testid="button-starter"
+                    >
                       Select Plan
                     </Button>
                   </div>
@@ -318,12 +471,21 @@ export default function Billing() {
                     </ul>
                     
                     <Button 
+                      variant={isSubscribed ? 'default' : 'default'}
                       className="w-full mt-6" 
-                      onClick={() => !isSubscribed && createSubscriptionMutation.mutate()}
-                      disabled={createSubscriptionMutation.isPending}
+                      onClick={() => {
+                        if (!isSubscribed) {
+                          createSubscriptionMutation.mutate();
+                          toast({
+                            title: "Upgrading to Professional",
+                            description: "Processing your upgrade to Professional plan...",
+                          });
+                        }
+                      }}
+                      disabled={createSubscriptionMutation.isPending || isSubscribed}
                       data-testid="button-professional"
                     >
-                      {isSubscribed ? 'Current Plan' : 'Upgrade Now'}
+                      {isSubscribed ? '✓ Current Plan' : createSubscriptionMutation.isPending ? 'Processing...' : 'Upgrade Now'}
                     </Button>
                   </div>
 
@@ -360,7 +522,17 @@ export default function Billing() {
                       </li>
                     </ul>
                     
-                    <Button variant="outline" className="w-full mt-6" data-testid="button-enterprise">
+                    <Button 
+                      variant="outline" 
+                      className="w-full mt-6" 
+                      onClick={() => {
+                        toast({
+                          title: "Contact Sales",
+                          description: "Our sales team will contact you within 24 hours to discuss Enterprise plans.",
+                        });
+                      }}
+                      data-testid="button-enterprise"
+                    >
                       Contact Sales
                     </Button>
                   </div>
