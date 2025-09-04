@@ -19,6 +19,7 @@ import Analytics from "@/pages/analytics";
 import Notifications from "@/pages/notifications";
 import ScheduleSettings from "@/pages/schedule-settings";
 import BookingApproval from "@/pages/booking-approval";
+import Settings from "@/pages/settings";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -42,6 +43,7 @@ function Router() {
           <Route path="/notifications" component={Notifications} />
           <Route path="/schedule-settings" component={ScheduleSettings} />
           <Route path="/booking-approval" component={BookingApproval} />
+          <Route path="/settings" component={Settings} />
         </>
       )}
       <Route component={NotFound} />
