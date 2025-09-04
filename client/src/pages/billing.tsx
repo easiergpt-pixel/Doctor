@@ -164,14 +164,44 @@ export default function Billing() {
                       {createSubscriptionMutation.isPending ? "Processing..." : "Upgrade to Pro"}
                     </Button>
                   ) : (
-                    <Button variant="outline" className="w-full" data-testid="button-manage">
+                    <Button 
+                      variant="outline" 
+                      className="w-full" 
+                      onClick={() => {
+                        toast({
+                          title: "Subscription Management",
+                          description: "Your Professional subscription is active and managed locally. Contact support for changes.",
+                        });
+                      }}
+                      data-testid="button-manage"
+                    >
                       Manage Subscription
                     </Button>
                   )}
-                  <Button variant="outline" className="w-full" data-testid="button-usage">
+                  <Button 
+                    variant="outline" 
+                    className="w-full"
+                    onClick={() => {
+                      toast({
+                        title: "Usage Details",
+                        description: `Current usage: ${currentUsage.toLocaleString()} messages of ${monthlyLimit.toLocaleString()} limit (${Math.round(usagePercentage)}% used)`,
+                      });
+                    }}
+                    data-testid="button-usage"
+                  >
                     View Usage Details
                   </Button>
-                  <Button variant="outline" className="w-full" data-testid="button-invoices">
+                  <Button 
+                    variant="outline" 
+                    className="w-full"
+                    onClick={() => {
+                      toast({
+                        title: "Invoice Download",
+                        description: "Local subscription invoices are auto-generated. Check your email for monthly summaries.",
+                      });
+                    }}
+                    data-testid="button-invoices"
+                  >
                     Download Invoices
                   </Button>
                 </CardContent>
