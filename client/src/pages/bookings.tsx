@@ -478,6 +478,138 @@ export default function Bookings() {
                   </div>
                 </>
               )}
+
+              {calendarView === 'week' && (
+                <>
+                  {/* Days of Week Header */}
+                  <div className="grid grid-cols-7 gap-px mb-4">
+                    {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((day, index) => (
+                      <div key={day} className={`p-3 text-center text-sm font-bold rounded-lg ${
+                        index === 0 || index === 6 
+                          ? 'text-red-600 bg-red-100 dark:bg-red-900 dark:text-red-200' 
+                          : 'text-blue-600 bg-blue-100 dark:bg-blue-900 dark:text-blue-200'
+                      }`}>
+                        {day.slice(0, 3)}
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {/* Week View */}
+                  <div className="grid grid-cols-7 gap-2">
+                    {eachDayOfInterval({
+                      start: startOfWeek(currentDate),
+                      end: endOfWeek(currentDate)
+                    }).map((date) => {
+                      const dayBookings = getBookingsForDate(date);
+                      const isSelected = selectedDate && isSameDay(date, selectedDate);
+                      const isToday = isSameDay(date, new Date());
+                      
+                      return (
+                        <div
+                          key={date.toISOString()}
+                          className={`min-h-[120px] p-3 rounded-xl cursor-pointer transition-all duration-300 border-2 ${
+                            isSelected
+                              ? 'bg-gradient-to-br from-purple-100 to-pink-100 border-purple-300 shadow-lg transform scale-105 dark:from-purple-900 dark:to-pink-900 dark:border-purple-600'
+                              : isToday
+                                ? 'bg-gradient-to-br from-blue-100 to-cyan-100 border-blue-400 shadow-md dark:from-blue-900 dark:to-cyan-900 dark:border-blue-600'
+                                : 'bg-white border-gray-200 hover:bg-gradient-to-br hover:from-gray-50 hover:to-blue-50 hover:border-blue-300 hover:shadow-md dark:bg-gray-900 dark:border-gray-700 dark:hover:from-gray-800 dark:hover:to-blue-900'
+                          }`}
+                          onClick={() => setSelectedDate(date)}
+                          data-testid={`calendar-date-${format(date, 'yyyy-MM-dd')}`}
+                        >
+                          <div className={`text-sm font-bold mb-2 flex items-center justify-center w-6 h-6 rounded-full ${
+                            isToday 
+                              ? 'bg-blue-500 text-white' 
+                              : isSelected 
+                                ? 'bg-purple-500 text-white'
+                                : 'text-gray-700 dark:text-gray-300'
+                          }`}>
+                            {format(date, 'd')}
+                          </div>
+                          
+                          {/* Day's Bookings */}
+                          <div className="space-y-1">
+                            {dayBookings.slice(0, 3).map((booking: any) => (
+                              <div
+                                key={booking.id}
+                                className={`text-xs p-2 rounded-md cursor-pointer border transition-all hover:scale-105 hover:shadow-md ${getBookingColor(booking)}`}
+                                title={`${booking.service} - ${booking.customerName || 'Unknown'}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedBooking(booking);
+                                }}
+                                data-testid={`appointment-${booking.id}`}
+                              >
+                                <div className="font-medium">{booking.dateTime ? format(parseISO(booking.dateTime), 'HH:mm') : 'N/A'}</div>
+                                <div className="truncate">{booking.service?.slice(0, 12) || 'Service'}</div>
+                              </div>
+                            ))}
+                            {dayBookings.length > 3 && (
+                              <div className="text-xs text-muted-foreground text-center">
+                                +{dayBookings.length - 3} more
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              {calendarView === 'year' && (
+                <div className="grid grid-cols-3 gap-4">
+                  {Array.from({ length: 12 }, (_, i) => {
+                    const monthDate = new Date(currentDate.getFullYear(), i, 1);
+                    const monthBookings = Array.isArray(bookings) ? bookings.filter((booking: any) => {
+                      if (!booking.dateTime) return false;
+                      try {
+                        const bookingDate = parseISO(booking.dateTime);
+                        return bookingDate && isSameMonth(bookingDate, monthDate);
+                      } catch {
+                        return false;
+                      }
+                    }) : [];
+                    
+                    return (
+                      <div
+                        key={i}
+                        className="p-4 bg-white dark:bg-gray-800 rounded-lg border-2 border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 cursor-pointer transition-all"
+                        onClick={() => setCurrentDate(monthDate)}
+                      >
+                        <h3 className="text-lg font-semibold text-center mb-2 text-gray-700 dark:text-gray-300">
+                          {format(monthDate, 'MMMM')}
+                        </h3>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                            {monthBookings.length}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {monthBookings.length === 1 ? 'booking' : 'bookings'}
+                          </div>
+                        </div>
+                        {monthBookings.length > 0 && (
+                          <div className="mt-2 space-y-1">
+                            {monthBookings.slice(0, 2).map((booking: any) => (
+                              <div
+                                key={booking.id}
+                                className="text-xs p-1 rounded bg-blue-50 dark:bg-blue-900 text-blue-700 dark:text-blue-300 truncate"
+                              >
+                                {booking.service?.slice(0, 15) || 'Service'}
+                              </div>
+                            ))}
+                            {monthBookings.length > 2 && (
+                              <div className="text-xs text-center text-muted-foreground">
+                                +{monthBookings.length - 2} more
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </CardContent>
           </Card>
 
