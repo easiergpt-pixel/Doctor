@@ -1,168 +1,57 @@
-import { WebSocketServer, WebSocket } from 'ws';
-import { Server } from 'http';
-import { storage } from '../storage';
+import type { Server } from "http";
+import { WebSocketServer, WebSocket } from "ws";
 
-interface WSClient {
-  ws: WebSocket;
-  userId: string;
-}
+type Client = WebSocket;
 
-export class RealtimeService {
-  private wss: WebSocketServer;
-  private clients: Map<string, WSClient[]> = new Map();
+class RealtimeService {
+  private wss: WebSocketServer | null = null;
+  private clientsByUser = new Map<string, Set<Client>>();
 
-  constructor(server: Server) {
-    this.wss = new WebSocketServer({ server, path: '/ws' });
-    this.setupWebSocket();
-  }
+  attach(server: Server, path = "/ws") {
+    if (this.wss) return;
+    this.wss = new WebSocketServer({ server, path });
 
-  private setupWebSocket() {
-    this.wss.on('connection', (ws, req) => {
-      console.log('New WebSocket connection');
+    this.wss.on("connection", (ws) => {
+      let authedUserId: string | null = null;
 
-      ws.on('message', async (data) => {
+      ws.on("message", (raw) => {
         try {
-          const message = JSON.parse(data.toString());
-          await this.handleMessage(ws, message);
-        } catch (error) {
-          console.error('Error handling WebSocket message:', error);
-          ws.send(JSON.stringify({ type: 'error', message: 'Invalid message format' }));
+          const msg = JSON.parse(raw.toString());
+          if (msg?.type === "auth" && typeof msg.userId === "string") {
+            authedUserId = msg.userId;
+            let set = this.clientsByUser.get(authedUserId);
+            if (!set) {
+              set = new Set();
+              this.clientsByUser.set(authedUserId, set);
+            }
+            set.add(ws);
+            ws.send(JSON.stringify({ type: "ready" }));
+          }
+        } catch {
+          // ignore bad message
         }
       });
 
-      ws.on('close', () => {
-        this.removeClient(ws);
-      });
-
-      ws.on('error', (error) => {
-        console.error('WebSocket error:', error);
-        this.removeClient(ws);
+      ws.on("close", () => {
+        if (authedUserId) {
+          const set = this.clientsByUser.get(authedUserId);
+          if (set) {
+            set.delete(ws);
+            if (set.size === 0) this.clientsByUser.delete(authedUserId);
+          }
+        }
       });
     });
   }
 
-  private async handleMessage(ws: WebSocket, message: any) {
-    switch (message.type) {
-      case 'auth':
-        await this.authenticateClient(ws, message.userId);
-        break;
-      case 'join_conversation':
-        await this.joinConversation(ws, message.conversationId);
-        break;
-      case 'send_message':
-        await this.handleNewMessage(ws, message);
-        break;
-      default:
-        ws.send(JSON.stringify({ type: 'error', message: 'Unknown message type' }));
+  broadcast(userId: string, payload: any) {
+    const set = this.clientsByUser.get(userId);
+    if (!set) return;
+    const data = JSON.stringify(payload);
+    for (const ws of set) {
+      if (ws.readyState === WebSocket.OPEN) ws.send(data);
     }
-  }
-
-  private async authenticateClient(ws: WebSocket, userId: string) {
-    try {
-      const user = await storage.getUser(userId);
-      if (!user) {
-        ws.send(JSON.stringify({ type: 'error', message: 'Authentication failed' }));
-        ws.close();
-        return;
-      }
-
-      // Store client connection
-      if (!this.clients.has(userId)) {
-        this.clients.set(userId, []);
-      }
-      this.clients.get(userId)!.push({ ws, userId });
-
-      ws.send(JSON.stringify({ type: 'authenticated', userId }));
-
-      // Send initial data
-      const activeConversations = await storage.getActiveConversations(userId);
-      ws.send(JSON.stringify({ 
-        type: 'active_conversations', 
-        conversations: activeConversations 
-      }));
-
-    } catch (error) {
-      console.error('Error authenticating client:', error);
-      ws.send(JSON.stringify({ type: 'error', message: 'Authentication error' }));
-    }
-  }
-
-  private async joinConversation(ws: WebSocket, conversationId: string) {
-    try {
-      const messages = await storage.getMessagesByConversation(conversationId);
-      ws.send(JSON.stringify({ 
-        type: 'conversation_history', 
-        conversationId,
-        messages 
-      }));
-    } catch (error) {
-      console.error('Error joining conversation:', error);
-    }
-  }
-
-  private async handleNewMessage(ws: WebSocket, message: any) {
-    try {
-      const { conversationId, content, sender } = message;
-      
-      const newMessage = await storage.createMessage({
-        conversationId,
-        content,
-        sender,
-        metadata: message.metadata || {},
-      });
-
-      // Broadcast to all clients of this user
-      const conversation = await storage.getConversation(conversationId);
-      if (conversation) {
-        this.broadcastToUser(conversation.userId, {
-          type: 'new_message',
-          message: newMessage,
-          conversationId,
-        });
-      }
-
-    } catch (error) {
-      console.error('Error handling new message:', error);
-      ws.send(JSON.stringify({ type: 'error', message: 'Failed to send message' }));
-    }
-  }
-
-  private removeClient(ws: WebSocket) {
-    for (const [userId, clients] of this.clients.entries()) {
-      const index = clients.findIndex(client => client.ws === ws);
-      if (index !== -1) {
-        clients.splice(index, 1);
-        if (clients.length === 0) {
-          this.clients.delete(userId);
-        }
-        break;
-      }
-    }
-  }
-
-  public broadcastToUser(userId: string, data: any) {
-    const clients = this.clients.get(userId);
-    if (clients) {
-      const message = JSON.stringify(data);
-      clients.forEach(client => {
-        if (client.ws.readyState === WebSocket.OPEN) {
-          client.ws.send(message);
-        }
-      });
-    }
-  }
-
-  public notifyNewConversation(userId: string, conversation: any) {
-    this.broadcastToUser(userId, {
-      type: 'new_conversation',
-      conversation,
-    });
-  }
-
-  public notifyBookingCreated(userId: string, booking: any) {
-    this.broadcastToUser(userId, {
-      type: 'new_booking',
-      booking,
-    });
   }
 }
+
+export const realtime = new RealtimeService();

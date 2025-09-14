@@ -1,85 +1,60 @@
-import express, { type Express } from "express";
-import fs from "fs";
 import path from "path";
+import fs from "fs";
+import type { Express } from "express";
+import express from "express";
+import type { Server } from "http";
 import { createServer as createViteServer, createLogger } from "vite";
-import { type Server } from "http";
-import viteConfig from "../vite.config";
-import { nanoid } from "nanoid";
 
 const viteLogger = createLogger();
 
-export function log(message: string, source = "express") {
-  const formattedTime = new Date().toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-  });
-
-  console.log(`${formattedTime} [${source}] ${message}`);
+export function log(message: string, source = "server") {
+  const ts = new Date().toLocaleTimeString("en-US", { hour12: false });
+  console.log(`[${ts}] [${source}] ${message}`);
 }
 
 export async function setupVite(app: Express, server: Server) {
-  const serverOptions = {
-    middlewareMode: true,
-    hmr: { server },
-    allowedHosts: true as const,
-  };
+  // Create Vite dev server in middleware mode and serve our SPA index
+  const projectRoot = process.cwd();
+  const clientRoot = path.resolve(projectRoot, "client");
+  const indexHtmlPath = path.resolve(clientRoot, "index.html");
 
   const vite = await createViteServer({
-    ...viteConfig,
-    configFile: false,
-    customLogger: {
-      ...viteLogger,
-      error: (msg, options) => {
-        viteLogger.error(msg, options);
-        process.exit(1);
-      },
-    },
-    server: serverOptions,
-    appType: "custom",
+    // Load the workspace-level Vite config so aliases like '@' work
+    configFile: path.resolve(projectRoot, "vite.config.ts"),
+    server: { middlewareMode: true },
+    appType: "custom", // we will handle HTML serving below
   });
 
+  // Mount Vite's middleware first so assets and HMR work
   app.use(vite.middlewares);
+
+  // Fallback: serve client/index.html for any non-API route
   app.use("*", async (req, res, next) => {
-    const url = req.originalUrl;
-
     try {
-      const clientTemplate = path.resolve(
-        import.meta.dirname,
-        "..",
-        "client",
-        "index.html",
-      );
-
-      // always reload the index.html file from disk incase it changes
-      let template = await fs.promises.readFile(clientTemplate, "utf-8");
-      template = template.replace(
-        `src="/src/main.tsx"`,
-        `src="/src/main.tsx?v=${nanoid()}"`,
-      );
-      const page = await vite.transformIndexHtml(url, template);
-      res.status(200).set({ "Content-Type": "text/html" }).end(page);
-    } catch (e) {
-      vite.ssrFixStacktrace(e as Error);
-      next(e);
+      // Avoid intercepting API and WS upgrade paths
+      if (req.originalUrl.startsWith("/api") || req.originalUrl.startsWith("/ws")) {
+        return next();
+      }
+      let template = fs.readFileSync(indexHtmlPath, "utf-8");
+      template = await vite.transformIndexHtml(req.originalUrl, template);
+      res.status(200).setHeader("Content-Type", "text/html").end(template);
+    } catch (err) {
+      viteLogger.error(err as Error);
+      next(err);
     }
   });
+
+  log("Vite middleware enabled (development)", "vite");
 }
 
 export function serveStatic(app: Express) {
-  const distPath = path.resolve(import.meta.dirname, "public");
-
-  if (!fs.existsSync(distPath)) {
-    throw new Error(
-      `Could not find the build directory: ${distPath}, make sure to build the client first`,
-    );
-  }
-
-  app.use(express.static(distPath));
-
-  // fall through to index.html if the file doesn't exist
-  app.use("*", (_req, res) => {
-    res.sendFile(path.resolve(distPath, "index.html"));
+  const distDir = path.resolve(process.cwd(), "dist");
+  const publicDir = path.join(distDir, "public");
+  const indexHtml = path.join(publicDir, "index.html");
+  app.use(express.static(publicDir));
+  app.get("*", (_req, res) => {
+    if (fs.existsSync(indexHtml)) res.sendFile(indexHtml);
+    else res.send("Build not found. Run `npm run build`.");
   });
+  log("Serving static build (production)");
 }

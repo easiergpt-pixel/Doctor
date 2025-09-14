@@ -36,13 +36,14 @@ const channelFormSchema = z.object({
 
 export default function Channels() {
   const { toast } = useToast();
-  const { isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [selectedChannel, setSelectedChannel] = useState<any>(null);
   const [configValues, setConfigValues] = useState<any>({});
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [webhookBusy, setWebhookBusy] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -190,7 +191,7 @@ export default function Channels() {
           'Generate a permanent access token for WhatsApp Business API',
           'Add your phone number: Go to WhatsApp Manager → Phone Numbers → Add Phone Number',
           'Set webhook URL in Meta for Developers: https://developers.facebook.com → Your App → WhatsApp → Configuration',
-          `Enter webhook URL: ${window.location.origin}/api/webhooks/whatsapp`,
+          `Enter webhook URL: ${window.location.origin}/hooks/whatsapp/${(user as any)?.id || 'YOUR_WORKSPACE_ID'}`,
           'Subscribe to webhook fields: messages, message_deliveries, message_reads',
           'Verify webhook with the verification token provided in your app settings',
           'Test by sending a message to your WhatsApp Business number'
@@ -232,7 +233,7 @@ export default function Channels() {
           'Set bot description with /setdescription command for better user experience',
           'Configure bot commands with /setcommands (optional but recommended)',
           `Set webhook URL: Send a POST request to https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook`,
-          `Webhook URL should be: ${window.location.origin}/api/webhooks/telegram`,
+          `Webhook URL should be: ${window.location.origin}/hooks/telegram/${(user as any)?.id || 'YOUR_WORKSPACE_ID'}`,
           'Include your webhook secret token in the request for security',
           'Test by sending a message to your bot on Telegram',
           'Enable inline mode with /setinline if you want users to use the bot in any chat',
@@ -406,6 +407,66 @@ export default function Channels() {
                           </div>
                         </div>
 
+                        {/* Webhook Helpers */}
+                        {selectedChannel.type === 'telegram' && (
+                          <div className="space-y-2 p-3 rounded-md border border-border bg-muted/30">
+                            <p className="text-sm font-medium">Telegram Webhook</p>
+                            <p className="text-xs text-muted-foreground break-all">
+                              URL: {`${window.location.origin}/hooks/telegram/${(user as any)?.id || 'YOUR_WORKSPACE_ID'}`}
+                            </p>
+                            {configValues.webhookSecret && (
+                              <p className="text-xs text-muted-foreground">Secret token: {configValues.webhookSecret}</p>
+                            )}
+                            <div className="flex gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => navigator.clipboard.writeText(`${window.location.origin}/hooks/telegram/${(user as any)?.id || 'YOUR_WORKSPACE_ID'}`)}
+                              >
+                                Copy URL
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={async () => {
+                                  try {
+                                    setWebhookBusy(true);
+                                    await apiRequest('POST', '/api/channels/telegram/set-webhook', {
+                                      publicUrl: window.location.origin,
+                                    });
+                                    toast({ title: 'Webhook set', description: 'Telegram webhook configured.' });
+                                  } catch (err: any) {
+                                    toast({ title: 'Failed to set webhook', description: err?.message || 'Error', variant: 'destructive' });
+                                  } finally {
+                                    setWebhookBusy(false);
+                                  }
+                                }}
+                                disabled={webhookBusy}
+                              >
+                                {webhookBusy ? 'Setting…' : 'Set Webhook Now'}
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        {selectedChannel.type === 'whatsapp' && (
+                          <div className="space-y-2 p-3 rounded-md border border-border bg-muted/30">
+                            <p className="text-sm font-medium">WhatsApp Callback URL</p>
+                            <p className="text-xs text-muted-foreground break-all">
+                              {`${window.location.origin}/hooks/whatsapp/${(user as any)?.id || 'YOUR_WORKSPACE_ID'}`}
+                            </p>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => navigator.clipboard.writeText(`${window.location.origin}/hooks/whatsapp/${(user as any)?.id || 'YOUR_WORKSPACE_ID'}`)}
+                            >
+                              Copy URL
+                            </Button>
+                          </div>
+                        )}
+
                         <div>
                           <h4 className="font-semibold mb-3">Configuration Fields:</h4>
                           <div className="space-y-4">
@@ -479,7 +540,7 @@ export default function Channels() {
   (function() {
     var chatWidget = document.createElement('div');
     chatWidget.id = 'ai-receptionist-widget';
-    chatWidget.innerHTML = '<iframe src="${window.location.origin}/widget/${selectedChannel.id}" width="350" height="500" frameborder="0"></iframe>';
+    chatWidget.innerHTML = '<iframe src="${window.location.origin}/widget/${(user as any)?.id || 'YOUR_WORKSPACE_ID'}" width="350" height="500" frameborder="0"></iframe>';
     chatWidget.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:9999;';
     document.body.appendChild(chatWidget);
   })();
@@ -494,7 +555,7 @@ export default function Channels() {
   (function() {
     var chatWidget = document.createElement('div');
     chatWidget.id = 'ai-receptionist-widget';
-    chatWidget.innerHTML = '<iframe src="${window.location.origin}/widget/${selectedChannel.id}" width="350" height="500" frameborder="0"></iframe>';
+    chatWidget.innerHTML = '<iframe src="${window.location.origin}/widget/${(user as any)?.id || 'YOUR_WORKSPACE_ID'}" width="350" height="500" frameborder="0"></iframe>';
     chatWidget.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:9999;';
     document.body.appendChild(chatWidget);
   })();
@@ -681,3 +742,5 @@ export default function Channels() {
     </div>
   );
 }
+
+

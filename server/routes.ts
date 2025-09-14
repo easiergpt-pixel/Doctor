@@ -1,879 +1,475 @@
-import type { Express } from "express";
+import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./replitAuth";
-import { reminderService } from "./services/reminderService";
-import { notifyCustomerOfBookingAction } from "./services/notificationService";
+import { nanoid } from "nanoid";
+import { realtime } from "./services/websocket";
 import { generateAIResponse } from "./services/openai";
-import { RealtimeService } from "./services/websocket";
-import { insertMessageSchema, insertBookingSchema, insertChannelSchema, insertAiTrainingSchema } from "@shared/schema";
+
+type Dict<T = any> = Record<string, T>;
+
+// In-memory demo data for local/dev usage
+const mockUser = {
+  id: "demo-user-1",
+  email: "demo@example.com",
+  firstName: "Demo",
+  lastName: "User",
+  preferredLanguage: "en",
+  aiPromptCustomization: "",
+  aiLanguageInstructions: "",
+  subscription: { plan: "starter", status: "active" },
+};
+
+const db = {
+  // Global demo data (non-tenant specific)
+  conversations: [] as Array<{
+    id: string;
+    channel: string;
+    channelName?: string;
+    status: "active" | "closed";
+    customerId?: string;
+    createdAt: string;
+    lastMessageAt?: string;
+  }>,
+  messages: new Map<string, Array<{ id: string; sender: string; content: string; createdAt: string }>>(),
+  bookings: [] as Array<{ id: string; customerId?: string; customerName?: string; service?: string; status: string; dateTime?: string; createdAt: string }>,
+  customers: [] as Array<{ id: string; name?: string; email?: string; phone?: string; source?: string; createdAt: string }>,
+  // Per-user (tenant) channel and integration settings
+  channelsByUser: new Map<string, Array<{ id: string; name: string; type: string; connected: boolean; createdAt: string; config?: Dict }>>(),
+  telegramByUser: new Map<string, { botToken: string; secret: string }>(),
+  whatsappByUser: new Map<string, { accessToken: string; phoneNumberId: string; verifyToken: string }>(),
+  gmailByUser: new Map<string, { connected: boolean; email?: string }>(),
+  reminderPreferences: { enabled: true, leadTimeMinutes: 60 },
+  aiTraining: [] as Array<{ id: string; content: string; category?: string; createdAt: string }>,
+};
+
+function getBaseUrl(req: Request) {
+  // Prefer PUBLIC_URL for externally reachable URLs (e.g., ngrok, prod domain)
+  const envUrl = process.env.PUBLIC_URL;
+  if (envUrl) return envUrl.replace(/\/$/, "");
+  const host = req.get("host");
+  const proto = (req as any).protocol || "http";
+  return `${proto}://${host}`;
+}
+
+function getCurrentUserId(_req: Request): string {
+  // In real app this comes from session/auth. For dev we use the mock user.
+  return mockUser.id;
+}
+
+function ensureSeedChannels(userId: string) {
+  if (!db.channelsByUser.has(userId)) {
+    const now = new Date().toISOString();
+    db.channelsByUser.set(userId, [
+      { id: "website", name: "Website", type: "website", connected: true, createdAt: now },
+      { id: "whatsapp", name: "WhatsApp", type: "whatsapp", connected: false, createdAt: now },
+      { id: "telegram", name: "Telegram", type: "telegram", connected: false, createdAt: now },
+      { id: "gmail", name: "Gmail", type: "gmail", connected: false, createdAt: now },
+    ]);
+  }
+}
+
+// Seed sample data
+(() => {
+  const cid = nanoid();
+  db.conversations.push({ id: cid, channel: "website", status: "active", createdAt: new Date().toISOString(), lastMessageAt: new Date().toISOString() });
+  db.messages.set(cid, [
+    { id: nanoid(), sender: "customer", content: "Hello!", createdAt: new Date().toISOString() },
+    { id: nanoid(), sender: "ai", content: "Hi, how can I help?", createdAt: new Date().toISOString() },
+  ]);
+  db.customers.push({ id: nanoid(), name: "Alice Johnson", email: "alice@example.com", phone: "+1 555 0100", source: "website", createdAt: new Date().toISOString() });
+  db.bookings.push({ id: nanoid(), customerName: "Alice Johnson", service: "Consultation", status: "pending", dateTime: new Date(Date.now()+ 2*3600*1000).toISOString(), createdAt: new Date().toISOString() });
+})();
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Auth middleware
-  await setupAuth(app);
+  // Healthcheck
+  app.get("/health", (_req, res) => res.json({ ok: true }));
 
-  const httpServer = createServer(app);
-  const realtimeService = new RealtimeService(httpServer);
-
-  // Auth routes
-  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
-      res.json(user);
-    } catch (error) {
-      console.error("Error fetching user:", error);
-      res.status(500).json({ message: "Failed to fetch user" });
-    }
+  // Simple dev auth endpoints
+  app.get("/api/login", (_req, res) => {
+    res.redirect("/");
   });
+  app.get("/api/logout", (_req, res) => res.status(204).end());
+  app.get("/api/auth/user", (_req, res) => res.json(mockUser));
 
-  // Dashboard stats
-  app.get('/api/stats', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      
-      const conversations = await storage.getConversationsByUser(userId);
-      const bookings = await storage.getBookingsByUser(userId);
-      const todaysBookings = await storage.getTodaysBookings(userId);
-      const usage = await storage.getTodaysUsage(userId);
-
-      const stats = {
-        totalConversations: conversations.length,
-        bookingsMade: bookings.filter(b => b.status === 'confirmed').length,
-        avgResponseTime: "2.3s", // This would be calculated from actual response times
-        satisfactionRate: "94%", // This would come from customer feedback
-        todaysBookings: todaysBookings.length,
-        tokensUsed: usage?.tokensUsed || 0,
-        cost: usage?.cost || "0.00",
-      };
-
-      res.json(stats);
-    } catch (error) {
-      console.error("Error fetching stats:", error);
-      res.status(500).json({ message: "Failed to fetch stats" });
-    }
-  });
-
-  // Channel stats - conversation count by channel type
-  app.get('/api/channels/stats', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const conversations = await storage.getConversationsByUser(userId);
-      
-      // Count conversations by channel type for today
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      const channelStats: Record<string, number> = {};
-      
-      for (const conv of conversations) {
-        const channel = await storage.getChannel(conv.channel);
-        const channelType = channel?.type || 'website';
-        
-        // Count conversations from today
-        if (conv.createdAt) {
-          const convDate = new Date(conv.createdAt);
-          if (convDate >= today) {
-            channelStats[channelType] = (channelStats[channelType] || 0) + 1;
-          }
-        }
-      }
-      
-      res.json(channelStats);
-    } catch (error) {
-      console.error("Error fetching channel stats:", error);
-      res.status(500).json({ message: "Failed to fetch channel stats" });
-    }
+  // Stats
+  app.get("/api/stats", (_req, res) => {
+    res.json({
+      totalConversations: db.conversations.length,
+      bookingsMade: db.bookings.filter(b => b.status !== "cancelled").length,
+      avgResponseTime: "0.8s",
+      satisfactionRate: "96%",
+    });
   });
 
   // Conversations
-  app.get('/api/conversations', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const conversations = await storage.getConversationsByUser(userId);
-      
-      // Enrich conversations with channel information
-      const enrichedConversations = await Promise.all(conversations.map(async (conv) => {
-        const channel = await storage.getChannel(conv.channel);
-        return {
-          ...conv,
-          channelName: channel?.name || 'Unknown',
-          channelType: channel?.type || 'unknown',
-          channel: channel?.type || conv.channel // Use channel type for display
-        };
-      }));
-      
-      res.json(enrichedConversations);
-    } catch (error) {
-      console.error("Error fetching conversations:", error);
-      res.status(500).json({ message: "Failed to fetch conversations" });
-    }
+  app.get("/api/conversations", (_req, res) => res.json(db.conversations));
+  app.get("/api/conversations/active", (_req, res) => res.json(db.conversations.filter(c => c.status === "active")));
+  app.get("/api/conversations/:id", (req, res) => {
+    const conv = db.conversations.find(c => c.id === req.params.id);
+    if (!conv) return res.status(404).json({ message: "Not found" });
+    res.json(conv);
+  });
+  app.get("/api/conversations/:id/messages", (req, res) => {
+    res.json(db.messages.get(req.params.id) ?? []);
+  });
+  app.post("/api/conversations/start", (req: Request, res: Response) => {
+    const id = nanoid();
+    const now = new Date().toISOString();
+    db.conversations.push({ id, channel: req.body?.channel || "website", status: "active", createdAt: now, lastMessageAt: now });
+    db.messages.set(id, []);
+    res.json({ id });
   });
 
-  app.get('/api/conversations/active', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const conversations = await storage.getActiveConversations(userId);
-      
-      // Enrich conversations with channel information
-      const enrichedConversations = await Promise.all(conversations.map(async (conv) => {
-        const channel = await storage.getChannel(conv.channel);
-        return {
-          ...conv,
-          channelName: channel?.name || 'Unknown',
-          channelType: channel?.type || 'unknown',
-          channel: channel?.type || conv.channel // Use channel type for display
-        };
-      }));
-      
-      res.json(enrichedConversations);
-    } catch (error) {
-      console.error("Error fetching active conversations:", error);
-      res.status(500).json({ message: "Failed to fetch active conversations" });
+  // Chat (AI echo)
+  app.post("/api/chat", async (req, res) => {
+    const { message, conversationId } = req.body ?? {};
+    if (typeof message !== "string" || typeof conversationId !== "string") {
+      return res.status(400).json({ message: "Invalid payload" });
     }
-  });
-
-  // Get single conversation
-  app.get('/api/conversations/:id', isAuthenticated, async (req: any, res) => {
-    try {
-      const { id } = req.params;
-      const userId = req.user.claims.sub;
-      
-      const conversation = await storage.getConversation(id);
-      if (!conversation || conversation.userId !== userId) {
-        return res.status(404).json({ message: 'Conversation not found' });
-      }
-      
-      // Enrich with channel information
-      const channel = await storage.getChannel(conversation.channel);
-      const enrichedConversation = {
-        ...conversation,
-        channelName: channel?.name || 'Unknown',
-        channelType: channel?.type || 'unknown',
-        channel: channel?.type || conversation.channel // Use channel type for display
-      };
-      
-      res.json(enrichedConversation);
-    } catch (error) {
-      console.error('Error fetching conversation:', error);
-      res.status(500).json({ message: 'Failed to fetch conversation' });
-    }
-  });
-
-  app.get('/api/conversations/:id/messages', isAuthenticated, async (req: any, res) => {
-    try {
-      const { id } = req.params;
-      const messages = await storage.getMessagesByConversation(id);
-      res.json(messages);
-    } catch (error) {
-      console.error("Error fetching messages:", error);
-      res.status(500).json({ message: "Failed to fetch messages" });
-    }
-  });
-
-  // Chat endpoint for AI responses
-  app.post('/api/chat', async (req, res) => {
-    try {
-      const { message, conversationId, channel, customerIdentifier } = req.body;
-      
-      if (!message || !conversationId) {
-        return res.status(400).json({ message: "Message and conversation ID required" });
-      }
-
-      // For now, we'll get userId from conversation or create a demo response
-      const conversation = await storage.getConversation(conversationId);
-      if (!conversation) {
-        return res.status(404).json({ message: "Conversation not found" });
-      }
-
-      // Get conversation history
-      const messages = await storage.getMessagesByConversation(conversationId);
-      const conversationHistory = messages.map(m => ({
-        role: m.sender === 'customer' ? 'user' as const : 'assistant' as const,
-        content: m.content,
-      }));
-
-      // Store customer message
-      await storage.createMessage({
-        conversationId,
-        content: message,
-        sender: 'customer',
-        metadata: { channel, customerIdentifier },
-      });
-
-      // Generate AI response
-      const aiResponse = await generateAIResponse(
-        conversation.userId,
-        message,
-        conversationHistory
-      );
-
-      // Store AI response
-      await storage.createMessage({
-        conversationId,
-        content: aiResponse.message,
-        sender: 'ai',
-        metadata: { action: aiResponse.action, confidence: aiResponse.confidence },
-      });
-
-      // Handle booking if needed
-      if (aiResponse.action === 'booking' && aiResponse.bookingData) {
-        const booking = await storage.createBooking({
-          userId: conversation.userId,
-          customerId: conversation.customerId,
-          conversationId,
-          service: aiResponse.bookingData.service,
-          dateTime: aiResponse.bookingData.preferredDateTime ? new Date(aiResponse.bookingData.preferredDateTime) : undefined,
-          status: 'pending',
-          notes: `Auto-created from chat. Customer: ${aiResponse.bookingData.customerName || 'Unknown'}`,
-        });
-
-        realtimeService.notifyBookingCreated(conversation.userId, booking);
-      }
-
-      res.json(aiResponse);
-    } catch (error) {
-      console.error("Error processing chat:", error);
-      res.status(500).json({ message: "Failed to process chat" });
-    }
-  });
-
-  // Start conversation endpoint for widget
-  app.post('/api/conversations/start', async (req, res) => {
-    try {
-      const { businessId, channel, customerIdentifier } = req.body;
-      
-      if (!businessId || !channel) {
-        return res.status(400).json({ message: "Business ID and channel required" });
-      }
-
-      // Find or create customer
-      let customer = await storage.getCustomerByIdentifier(businessId, customerIdentifier, channel);
-      if (!customer) {
-        customer = await storage.createCustomer({
-          userId: businessId,
-          name: "Unknown Customer",
-          source: channel,
-          metadata: { identifier: customerIdentifier },
-        });
-      }
-
-      // Create conversation
-      const conversation = await storage.createConversation({
-        userId: businessId,
-        customerId: customer.id,
-        channel,
-        status: 'active',
-        lastMessageAt: new Date(),
-      });
-
-      realtimeService.notifyNewConversation(businessId, conversation);
-
-      res.json(conversation);
-    } catch (error) {
-      console.error("Error starting conversation:", error);
-      res.status(500).json({ message: "Failed to start conversation" });
-    }
+    const list = db.messages.get(conversationId);
+    if (!list) return res.status(404).json({ message: "Conversation not found" });
+    list.push({ id: nanoid(), sender: "customer", content: message, createdAt: new Date().toISOString() });
+    const ai = await generateAIResponse(message);
+    list.push({ id: nanoid(), sender: "ai", content: ai.content, createdAt: new Date().toISOString() });
+    // notify over WS
+    realtime.broadcast(mockUser.id, { type: "conversation:update", conversationId });
+    res.json({ message: ai.content });
   });
 
   // Bookings
-  app.get('/api/bookings', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const bookings = await storage.getBookingsByUser(userId);
-      res.json(bookings);
-    } catch (error) {
-      console.error("Error fetching bookings:", error);
-      res.status(500).json({ message: "Failed to fetch bookings" });
-    }
+  app.get("/api/bookings", (_req, res) => res.json(db.bookings));
+  app.post("/api/bookings", (req, res) => {
+    const id = nanoid();
+    const booking = { id, status: "pending", createdAt: new Date().toISOString(), ...req.body };
+    db.bookings.push(booking);
+    realtime.broadcast(mockUser.id, { type: "booking:new", id });
+    res.json(booking);
   });
-
-  app.get('/api/bookings/today', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const bookings = await storage.getTodaysBookings(userId);
-      res.json(bookings);
-    } catch (error) {
-      console.error("Error fetching today's bookings:", error);
-      res.status(500).json({ message: "Failed to fetch today's bookings" });
-    }
+  app.put("/api/bookings/:id", (req, res) => {
+    const b = db.bookings.find(x => x.id === req.params.id);
+    if (!b) return res.status(404).json({ message: "Not found" });
+    Object.assign(b, req.body ?? {});
+    realtime.broadcast(mockUser.id, { type: "booking:update", id: b.id });
+    res.json(b);
   });
-
-  app.post('/api/bookings', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const bookingData = insertBookingSchema.parse({ ...req.body, userId });
-      
-      const booking = await storage.createBooking(bookingData);
-      realtimeService.notifyBookingCreated(userId, booking);
-      
-      // Automatically create reminders for the new booking
-      if (booking.id) {
-        await reminderService.createRemindersForBooking(booking.id);
-      }
-      
-      res.json(booking);
-    } catch (error) {
-      console.error("Error creating booking:", error);
-      res.status(500).json({ message: "Failed to create booking" });
-    }
+  app.patch("/api/bookings/:id/owner-action", (req, res) => {
+    const b = db.bookings.find(x => x.id === req.params.id);
+    if (!b) return res.status(404).json({ message: "Not found" });
+    const action = (req.body?.action ?? "").toString();
+    if (action === "approve") b.status = "confirmed";
+    else if (action === "reject") b.status = "rejected";
+    else if (action === "reschedule") b.status = "reschedule_requested";
+    res.json(b);
   });
 
   // Customers
-  app.get('/api/customers', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const customers = await storage.getCustomersByUser(userId);
-      res.json(customers);
-    } catch (error) {
-      console.error("Error fetching customers:", error);
-      res.status(500).json({ message: "Failed to fetch customers" });
-    }
+  app.get("/api/customers", (_req, res) => res.json(db.customers));
+
+  // Channels (per user)
+  app.get("/api/channels", (req, res) => {
+    const uid = getCurrentUserId(req);
+    ensureSeedChannels(uid);
+    res.json(db.channelsByUser.get(uid));
   });
 
-  // Channels
-  app.get('/api/channels', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const channels = await storage.getChannelsByUser(userId);
-      res.json(channels);
-    } catch (error) {
-      console.error("Error fetching channels:", error);
-      res.status(500).json({ message: "Failed to fetch channels" });
-    }
+  app.get("/api/channels/stats", (_req, res) => {
+    const byType: Dict<number> = {};
+    for (const c of db.conversations) byType[c.channel] = (byType[c.channel] ?? 0) + 1;
+    res.json({ byType });
+  });
+  app.post("/api/channels", (req, res) => {
+    const uid = getCurrentUserId(req);
+    ensureSeedChannels(uid);
+    const id = nanoid();
+    const type = (req.body?.type || "custom").toString();
+    const ch = { id, name: req.body?.name || "New Channel", type, connected: false, createdAt: new Date().toISOString() };
+    db.channelsByUser.get(uid)!.push(ch);
+    res.json(ch);
   });
 
-  app.put('/api/channels/:id/config', isAuthenticated, async (req: any, res) => {
-    try {
-      const channelId = req.params.id;
-      const { config } = req.body;
-      const userId = req.user.claims.sub;
+  app.put("/api/channels/:id/config", (req, res) => {
+    const uid = getCurrentUserId(req);
+    ensureSeedChannels(uid);
+    const list = db.channelsByUser.get(uid)!;
+    const ch = list.find(c => c.id === req.params.id || c.id === req.params.id);
+    if (!ch) return res.status(404).json({ message: "Not found" });
+    const cfg = (req.body?.config ?? req.body ?? {}) as Dict;
+    ch.config = { ...(ch.config || {}), ...cfg };
 
-      // Verify the channel belongs to the user
-      const channel = await storage.getChannel(channelId);
-      if (!channel || channel.userId !== userId) {
-        return res.status(404).json({ message: "Channel not found" });
+    // Mark connected based on required fields per type
+    if (ch.type === "telegram") {
+      const botToken = (cfg.botToken || ch.config?.botToken) as string | undefined;
+      const secret = (cfg.secret || cfg.webhookSecret || ch.config?.secret || ch.config?.webhookSecret || nanoid()) as string;
+      if (botToken) {
+        db.telegramByUser.set(uid, { botToken, secret });
+        ch.connected = true;
+        ch.config!.secret = secret;
+        ch.config!.webhookSecret = secret;
       }
-
-      await storage.updateChannelConfig(channelId, config);
-      res.json({ message: "Channel configuration updated successfully" });
-    } catch (error) {
-      console.error("Error updating channel config:", error);
-      res.status(500).json({ message: "Failed to update channel configuration" });
+    } else if (ch.type === "whatsapp") {
+      const accessToken = (cfg.accessToken || ch.config?.accessToken) as string | undefined;
+      const phoneNumberId = (cfg.phoneNumberId || ch.config?.phoneNumberId) as string | undefined;
+      const verifyToken = (cfg.verifyToken || ch.config?.verifyToken || nanoid()) as string;
+      if (accessToken && phoneNumberId) {
+        db.whatsappByUser.set(uid, { accessToken, phoneNumberId, verifyToken });
+        ch.connected = true;
+        ch.config!.verifyToken = verifyToken;
+      }
+    } else if (ch.type === "gmail") {
+      // Placeholder: mark connected when email is provided
+      if (cfg.email) {
+        db.gmailByUser.set(uid, { connected: true, email: cfg.email });
+        ch.connected = true;
+      }
+    } else if (ch.type === "website") {
+      ch.connected = true;
     }
+
+    res.json(ch);
   });
 
-  app.post('/api/channels', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const channelData = insertChannelSchema.parse({ ...req.body, userId });
-      
-      const channel = await storage.createChannel(channelData);
-      res.json(channel);
-    } catch (error) {
-      console.error("Error creating channel:", error);
-      res.status(500).json({ message: "Failed to create channel" });
-    }
+  // Convenience helper to get recommended webhook URLs for current user
+  app.get("/api/channels/telegram/webhook-url", (req, res) => {
+    const uid = getCurrentUserId(req);
+    const base = getBaseUrl(req);
+    res.json({ url: `${base}/hooks/telegram/${uid}` });
   });
 
-  // AI Training
-  app.get('/api/ai-training', isAuthenticated, async (req: any, res) => {
+  app.post("/api/channels/telegram/set-webhook", async (req, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const training = await storage.getAiTrainingByUser(userId);
-      res.json(training);
-    } catch (error) {
-      console.error("Error fetching AI training:", error);
-      res.status(500).json({ message: "Failed to fetch AI training" });
-    }
-  });
-
-  app.post('/api/ai-training', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const trainingData = insertAiTrainingSchema.parse({ ...req.body, userId });
-      
-      const training = await storage.createAiTraining(trainingData);
-      res.json(training);
-    } catch (error) {
-      console.error("Error creating AI training:", error);
-      res.status(500).json({ message: "Failed to create AI training" });
-    }
-  });
-
-  // AI Settings
-  app.put('/api/ai-settings', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const { preferredLanguage, aiPromptCustomization, aiLanguageInstructions } = req.body;
-
-      await storage.updateUserAISettings(userId, {
-        preferredLanguage,
-        aiPromptCustomization,
-        aiLanguageInstructions,
+      const uid = getCurrentUserId(req);
+      const cfg = db.telegramByUser.get(uid);
+      if (!cfg) return res.status(400).json({ message: "Telegram not configured" });
+      const base = (req.body?.publicUrl as string) || getBaseUrl(req);
+      const url = `${base.replace(/\/$/, "")}/hooks/telegram/${uid}`;
+      const resp = await fetch(`https://api.telegram.org/bot${cfg.botToken}/setWebhook`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url, secret_token: cfg.secret }),
       });
-
-      res.json({ message: "AI settings updated successfully" });
-    } catch (error) {
-      console.error("Error updating AI settings:", error);
-      res.status(500).json({ message: "Failed to update AI settings" });
+      const data = await resp.json();
+      res.json({ ok: true, webhook: url, telegram: data });
+    } catch (err) {
+      res.status(500).json({ ok: false, error: String(err) });
     }
   });
 
-  // Telegram Webhook Handler
-  app.post('/api/webhooks/telegram', async (req, res) => {
+  app.get("/api/channels/whatsapp/webhook-url", (req, res) => {
+    const uid = getCurrentUserId(req);
+    const base = getBaseUrl(req);
+    res.json({ url: `${base}/hooks/whatsapp/${uid}` });
+  });
+
+  // Reminder preferences
+  app.get("/api/reminder-preferences", (_req, res) => res.json(db.reminderPreferences));
+  app.post("/api/reminder-preferences", (req, res) => {
+    db.reminderPreferences = { ...(db.reminderPreferences || {}), ...(req.body ?? {}) };
+    res.json(db.reminderPreferences);
+  });
+
+  // AI settings / training
+  app.put("/api/ai-settings", (req, res) => {
+    Object.assign(mockUser, req.body ?? {});
+    res.status(204).end();
+  });
+  app.get("/api/ai-training", (_req, res) => res.json(db.aiTraining));
+  app.post("/api/ai-training", (req, res) => {
+    const id = nanoid();
+    const row = { id, content: req.body?.content || "", category: req.body?.category, createdAt: new Date().toISOString() };
+    db.aiTraining.push(row);
+    res.json(row);
+  });
+
+  // Placeholder API root
+  app.get("/api", (_req, res) => res.json({ status: "ok" }));
+
+  // Create HTTP server and attach WebSocket
+  const httpServer = createServer(app);
+  realtime.attach(httpServer, "/ws");
+
+  // Webhook endpoints for external services (self-serve per-tenant)
+  // Telegram webhook: POST /hooks/telegram/:userId
+  app.post("/hooks/telegram/:userId", async (req, res) => {
     try {
-      // Process Telegram webhook
-      
-      const update = req.body;
-      
-      // Validate webhook has message
-      if (!update.message) {
-        console.log('No message in webhook update');
-        return res.status(200).send('OK');
+      const { userId } = req.params as { userId: string };
+      const cfg = db.telegramByUser.get(userId);
+      if (!cfg) return res.status(404).json({ message: "Unknown tenant or Telegram not configured" });
+
+      const headerToken = req.get("X-Telegram-Bot-Api-Secret-Token");
+      if (headerToken !== cfg.secret) return res.status(401).end();
+
+      const update = req.body ?? {};
+      // Acknowledge immediately
+      res.sendStatus(200);
+
+      if (update.message && update.message.text) {
+        const chatId = update.message.chat.id;
+        const text = update.message.text as string;
+
+        // Record into in-memory conversations/messages
+        const convId = nanoid();
+        db.conversations.push({ id: convId, channel: "telegram", status: "active", createdAt: new Date().toISOString(), lastMessageAt: new Date().toISOString() });
+        db.messages.set(convId, [
+          { id: nanoid(), sender: "customer", content: text, createdAt: new Date().toISOString() },
+        ]);
+        realtime.broadcast(userId, { type: "conversation:update", conversationId: convId });
+
+        // AI response and reply via Telegram API
+        try {
+          const ai = await generateAIResponse(text);
+          db.messages.get(convId)!.push({ id: nanoid(), sender: "ai", content: ai.content, createdAt: new Date().toISOString() });
+          await fetch(`https://api.telegram.org/bot${cfg.botToken}/sendMessage`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: chatId, text: ai.content }),
+          });
+        } catch (err) {
+          // Network may be restricted in local dev; log and continue
+          console.warn("Telegram sendMessage failed:", err);
+        }
       }
-      
-      const message = update.message;
-      const chatId = message.chat.id.toString();
-      const messageText = message.text || '';
-      const firstName = message.from?.first_name || 'Unknown';
-      const lastName = message.from?.last_name || '';
-      const username = message.from?.username;
-      
-      if (!messageText) {
-        console.log('No text in message');
-        return res.status(200).send('OK');
-      }
-      
-      // Find the Telegram channel configuration
-      const channels = await storage.getChannelsByType('telegram');
-      if (channels.length === 0) {
-        console.error('No Telegram channels configured');
-        return res.status(200).send('OK');
-      }
-      
-      const channel = channels[0]; // Use first configured Telegram channel
-      const config = typeof channel.config === 'string' ? JSON.parse(channel.config) : (channel.config || {});
-      const botToken = config.botToken;
-      
-      if (!botToken) {
-        console.error('No bot token configured');
-        return res.status(200).send('OK');
-      }
-      
-      // Find or create customer
-      let customer = await storage.getCustomerByTelegramId(channel.userId, chatId);
-      if (!customer) {
-        const customerName = [firstName, lastName].filter(Boolean).join(' ') || 'Telegram User';
-        customer = await storage.createCustomer({
-          userId: channel.userId,
-          name: customerName,
-          source: 'telegram',
-          metadata: { 
-            identifier: chatId,
-            telegramUsername: username,
-            firstName: firstName,
-            lastName: lastName 
-          },
-        });
-      }
-      
-      // Find or create conversation
-      let conversation = await storage.getActiveConversationByCustomer(customer.id);
-      if (!conversation) {
-        conversation = await storage.createConversation({
-          userId: channel.userId,
-          customerId: customer.id,
-          channel: channel.id,
-          status: 'active',
-          lastMessageAt: new Date(),
-        });
-        
-        // Notify real-time clients about new conversation
-        realtimeService.notifyNewConversation(channel.userId, conversation);
-      }
-      
-      // Store customer message
-      await storage.createMessage({
-        conversationId: conversation.id,
-        content: messageText,
-        sender: 'customer',
-        metadata: { 
-          channel: 'telegram', 
-          customerIdentifier: chatId,
-          telegramMessageId: message.message_id,
-          telegramUserId: message.from?.id
-        },
-      });
-      
-      // Get conversation history for AI context
-      const messages = await storage.getMessagesByConversation(conversation.id);
-      // Filter out generic English responses but keep all other conversation context
-      const conversationHistory = messages.slice(-10)
-        .filter(m => 
-          m.content !== "I'm here to help! How can I assist you today!" &&
-          m.content.trim() !== "" &&
-          !m.content.includes("How can I assist you today")
-        )
-        .map(m => ({
-          role: m.sender === 'customer' ? 'user' as const : 'assistant' as const,
-          content: m.content,
-        }));
-      
-      // Generate AI response
-      const aiResponse = await generateAIResponse(
-        channel.userId,
-        messageText,
-        conversationHistory
-      );
-      
-      // Store AI response
-      await storage.createMessage({
-        conversationId: conversation.id,
-        content: aiResponse.message,
-        sender: 'ai',
-        metadata: { 
-          action: aiResponse.action, 
-          confidence: aiResponse.confidence,
-          channel: 'telegram'
-        },
-      });
-      
-      // Handle booking if needed
-      if (aiResponse.action === 'booking' && aiResponse.bookingData) {
-        let bookingDate = new Date(); // Default to now
-        
-        // Parse preferred date/time with better logic
-        if (aiResponse.bookingData.preferredDateTime) {
-          const dateTimeStr = aiResponse.bookingData.preferredDateTime.toLowerCase();
-          
-          if (dateTimeStr.includes('sabah') || dateTimeStr.includes('tomorrow')) {
-            // Tomorrow
-            bookingDate = new Date();
-            bookingDate.setDate(bookingDate.getDate() + 1);
-            
-            // Extract time (like "saat 9", "9:00")
-            const timeMatch = dateTimeStr.match(/(\d+):?(\d*)/);
-            if (timeMatch) {
-              const hour = parseInt(timeMatch[1]);
-              const minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
-              bookingDate.setHours(hour, minute, 0, 0);
-            }
-          } else if (dateTimeStr.includes('04.09.2025') || dateTimeStr.includes('2025-09-04')) {
-            // Specific date
-            bookingDate = new Date('2025-09-04');
-            const timeMatch = dateTimeStr.match(/(\d+):(\d+)/);
-            if (timeMatch) {
-              bookingDate.setHours(parseInt(timeMatch[1]), parseInt(timeMatch[2]), 0, 0);
-            } else {
-              bookingDate.setHours(9, 0, 0, 0); // Default 9 AM
-            }
-          } else {
-            // Try to parse as ISO date
-            try {
-              const parsed = new Date(aiResponse.bookingData.preferredDateTime);
-              if (!isNaN(parsed.getTime())) {
-                bookingDate = parsed;
-              }
-            } catch (error) {
-              console.log('Using default date due to parsing error:', error);
-            }
+    } catch (err) {
+      console.error("Telegram webhook error:", err);
+      if (!res.headersSent) res.sendStatus(200); // avoid retries during dev
+    }
+  });
+
+  // WhatsApp Cloud API webhook (verification + messages)
+  app.get("/hooks/whatsapp/:userId", (req, res) => {
+    const { userId } = req.params as { userId: string };
+    const cfg = db.whatsappByUser.get(userId);
+    const mode = req.query["hub.mode"]; // ?hub.mode=subscribe
+    const token = req.query["hub.verify_token"]; // ?hub.verify_token=...
+    const challenge = req.query["hub.challenge"]; // ?hub.challenge=...
+    if (mode === "subscribe" && cfg && token === cfg.verifyToken) {
+      return res.status(200).send(challenge as any);
+    }
+    return res.status(403).end();
+  });
+
+  app.post("/hooks/whatsapp/:userId", async (req, res) => {
+    const { userId } = req.params as { userId: string };
+    const cfg = db.whatsappByUser.get(userId);
+    if (!cfg) return res.status(404).json({ message: "Unknown tenant or WhatsApp not configured" });
+    // Acknowledge receipt
+    res.sendStatus(200);
+    try {
+      const body: any = req.body || {};
+      const changes = body?.entry?.[0]?.changes || [];
+      for (const ch of changes) {
+        const value = ch?.value;
+        const messages = value?.messages || [];
+        for (const msg of messages) {
+          const from = msg.from || value?.contacts?.[0]?.wa_id;
+          const type = msg.type;
+          const text = type === "text" ? msg.text?.body : undefined;
+          if (!from || !text) continue;
+
+          // Record conversation
+          const convId = nanoid();
+          db.conversations.push({ id: convId, channel: "whatsapp", status: "active", createdAt: new Date().toISOString(), lastMessageAt: new Date().toISOString() });
+          db.messages.set(convId, [
+            { id: nanoid(), sender: "customer", content: text, createdAt: new Date().toISOString() },
+          ]);
+          realtime.broadcast(userId, { type: "conversation:update", conversationId: convId });
+
+          // AI reply
+          const ai = await generateAIResponse(text);
+          db.messages.get(convId)!.push({ id: nanoid(), sender: "ai", content: ai.content, createdAt: new Date().toISOString() });
+
+          // Send message via WhatsApp Cloud API
+          try {
+            await fetch(`https://graph.facebook.com/v20.0/${cfg.phoneNumberId}/messages`, {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${cfg.accessToken}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                messaging_product: "whatsapp",
+                to: from,
+                type: "text",
+                text: { body: ai.content },
+              }),
+            });
+          } catch (err) {
+            console.warn("WhatsApp send message failed:", err);
           }
         }
-        
-        const booking = await storage.createBooking({
-          userId: channel.userId,
-          customerId: customer.id,
-          conversationId: conversation.id,
-          service: aiResponse.bookingData.service || 'General consultation',
-          dateTime: bookingDate,
-          status: 'pending',
-          notes: `Auto-created from Telegram chat. Customer: ${aiResponse.bookingData.customerName || customer.name}. Requested: ${aiResponse.bookingData.preferredDateTime || 'no specific time'}`,
-        });
-        
-        realtimeService.notifyBookingCreated(channel.userId, booking);
       }
-      
-      // Send response back to Telegram
-      try {
-        const telegramApiUrl = `https://api.telegram.org/bot${botToken}/sendMessage`;
-        const response = await fetch(telegramApiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: chatId,
-            text: aiResponse.message,
-            parse_mode: 'Markdown'
-          })
-        });
-        
-        if (!response.ok) {
-          console.error('Failed to send Telegram response:', await response.text());
-        }
-      } catch (error) {
-        console.error('Error sending Telegram message:', error);
-      }
-      
-      // Notify real-time clients
-      realtimeService.broadcastToUser(channel.userId, {
-        type: 'new_message',
-        conversationId: conversation.id,
-        message: {
-          id: `temp-${Date.now()}`,
-          conversationId: conversation.id,
-          content: messageText,
-          sender: 'customer',
-          createdAt: new Date(),
-          metadata: { channel: 'telegram' }
-        }
-      });
-      
-      realtimeService.broadcastToUser(channel.userId, {
-        type: 'new_message',
-        conversationId: conversation.id,
-        message: {
-          id: `temp-ai-${Date.now()}`,
-          conversationId: conversation.id,
-          content: aiResponse.message,
-          sender: 'ai',
-          createdAt: new Date(),
-          metadata: { action: aiResponse.action, confidence: aiResponse.confidence }
-        }
-      });
-      
-      res.status(200).send('OK');
-    } catch (error) {
-      console.error('Telegram webhook error:', error);
-      res.status(200).send('OK'); // Always return 200 to avoid Telegram retries
+    } catch (err) {
+      console.error("WhatsApp webhook parse error:", err);
     }
   });
 
-  // Local subscription management
-  app.post('/api/create-subscription', isAuthenticated, async (req: any, res) => {
-    const userId = req.user.claims.sub;
-    let user = await storage.getUser(userId);
+  // Minimal website chat widget page for quick embedding/testing
+  app.get("/widget/:userId", (req, res) => {
+    const { userId } = req.params as { userId: string };
+    const html = `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Chat Widget</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin:0; }
+      #app { display:flex; flex-direction:column; height:100vh; }
+      header { background:#111827; color:#fff; padding:8px 12px; font-size:14px; }
+      .messages { flex:1; overflow:auto; padding:12px; background:#0f172a; color:#e5e7eb; }
+      .msg { margin:6px 0; padding:8px 10px; border-radius:8px; max-width:80%; }
+      .me { background:#2563eb; color:#fff; margin-left:auto; }
+      .bot { background:#334155; }
+      form { display:flex; gap:8px; padding:8px; border-top:1px solid #e5e7eb22; background:#0b1220; }
+      input { flex:1; padding:8px; border-radius:6px; border:1px solid #475569; background:#0f172a; color:#e5e7eb; }
+      button { padding:8px 12px; border:0; border-radius:6px; background:#22c55e; color:#041014; font-weight:600; }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <header>AI Receptionist</header>
+      <div class="messages" id="messages"></div>
+      <form id="form">
+        <input id="input" autocomplete="off" placeholder="Type your message..." />
+        <button type="submit">Send</button>
+      </form>
+    </div>
+    <script>
+      const messagesEl = document.getElementById('messages');
+      const form = document.getElementById('form');
+      const input = document.getElementById('input');
+      let conversationId = null;
 
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    try {
-      // Simple local subscription - mark user as having a subscription
-      await storage.updateUserSubscriptionStatus(userId, 'active', 'professional');
-      
-      res.json({
-        success: true,
-        message: "Subscription activated locally",
-        plan: "professional"
-      });
-    } catch (error: any) {
-      console.error("Subscription error:", error);
-      return res.status(400).json({ error: { message: error.message } });
-    }
-  });
-
-  // Get subscription status
-  app.get('/api/subscription/status', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
-      
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
+      async function start() {
+        const resp = await fetch('/api/conversations/start', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ channel:'website' })});
+        const data = await resp.json();
+        conversationId = data.id;
+        add('bot','Hi! How can I help?');
       }
 
-      res.json({
-        status: user.subscriptionStatus || 'inactive',
-        plan: user.subscriptionStatus === 'active' ? 'professional' : 'free'
-      });
-    } catch (error) {
-      console.error("Error fetching subscription status:", error);
-      res.status(500).json({ message: "Failed to fetch subscription status" });
-    }
-  });
-
-  // Reminder preferences routes
-  app.get('/api/reminder-preferences', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const preferences = await storage.getUserReminderPreferences(userId);
-      res.json(preferences || {
-        emailReminders: true,
-        smsReminders: false,
-        whatsappReminders: false,
-        reminderTiming: ['24h', '1h'],
-        language: 'en'
-      });
-    } catch (error) {
-      console.error('Error fetching reminder preferences:', error);
-      res.status(500).json({ message: 'Failed to fetch reminder preferences' });
-    }
-  });
-
-  app.post('/api/reminder-preferences', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const preferences = await storage.upsertUserReminderPreferences({
-        ...req.body,
-        userId,
-      });
-      res.json(preferences);
-    } catch (error) {
-      console.error('Error saving reminder preferences:', error);
-      res.status(500).json({ message: 'Failed to save reminder preferences' });
-    }
-  });
-
-  // Get booking reminders for user
-  app.get('/api/reminders', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const reminders = await storage.getBookingRemindersByUser(userId);
-      res.json(reminders);
-    } catch (error) {
-      console.error('Error fetching reminders:', error);
-      res.status(500).json({ message: 'Failed to fetch reminders' });
-    }
-  });
-
-  // Schedule management routes
-  app.get('/api/schedule-slots', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const slots = await storage.getScheduleSlots(userId);
-      res.json(slots);
-    } catch (error) {
-      console.error("Error fetching schedule slots:", error);
-      res.status(500).json({ message: "Failed to fetch schedule slots" });
-    }
-  });
-
-  app.post('/api/schedule-slots', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const slotData = { ...req.body, userId };
-      
-      const slot = await storage.createScheduleSlot(slotData);
-      res.json(slot);
-    } catch (error) {
-      console.error("Error creating schedule slot:", error);
-      res.status(500).json({ message: "Failed to create schedule slot" });
-    }
-  });
-
-  app.patch('/api/schedule-slots/:id', isAuthenticated, async (req: any, res) => {
-    try {
-      const { id } = req.params;
-      const slotData = req.body;
-      
-      const slot = await storage.updateScheduleSlot(id, slotData);
-      res.json(slot);
-    } catch (error) {
-      console.error("Error updating schedule slot:", error);
-      res.status(500).json({ message: "Failed to update schedule slot" });
-    }
-  });
-
-  app.delete('/api/schedule-slots/:id', isAuthenticated, async (req: any, res) => {
-    try {
-      const { id } = req.params;
-      
-      await storage.deleteScheduleSlot(id);
-      res.json({ message: "Schedule slot deleted successfully" });
-    } catch (error) {
-      console.error("Error deleting schedule slot:", error);
-      res.status(500).json({ message: "Failed to delete schedule slot" });
-    }
-  });
-
-  // Special availability routes
-  app.get('/api/special-availability', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const special = await storage.getSpecialAvailability(userId);
-      res.json(special);
-    } catch (error) {
-      console.error("Error fetching special availability:", error);
-      res.status(500).json({ message: "Failed to fetch special availability" });
-    }
-  });
-
-  app.post('/api/special-availability', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const specialData = { ...req.body, userId, date: new Date(req.body.date) };
-      
-      const special = await storage.createSpecialAvailability(specialData);
-      res.json(special);
-    } catch (error) {
-      console.error("Error creating special availability:", error);
-      res.status(500).json({ message: "Failed to create special availability" });
-    }
-  });
-
-  app.delete('/api/special-availability/:id', isAuthenticated, async (req: any, res) => {
-    try {
-      const { id } = req.params;
-      
-      await storage.deleteSpecialAvailability(id);
-      res.json({ message: "Special availability deleted successfully" });
-    } catch (error) {
-      console.error("Error deleting special availability:", error);
-      res.status(500).json({ message: "Failed to delete special availability" });
-    }
-  });
-
-  // Available time slots endpoint for AI
-  app.get('/api/available-slots', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const { date, duration } = req.query;
-      
-      if (!date) {
-        return res.status(400).json({ message: "Date parameter is required" });
+      function add(sender, text) {
+        const div = document.createElement('div');
+        div.className = 'msg ' + (sender === 'me' ? 'me' : 'bot');
+        div.textContent = text;
+        messagesEl.appendChild(div);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
       }
-      
-      const requestDate = new Date(date as string);
-      const slotDuration = duration ? parseInt(duration as string) : 30;
-      
-      const availableSlots = await storage.getAvailableTimeSlots(userId, requestDate, slotDuration);
-      res.json(availableSlots);
-    } catch (error) {
-      console.error("Error fetching available slots:", error);
-      res.status(500).json({ message: "Failed to fetch available slots" });
-    }
-  });
 
-  // Booking confirmation workflow routes
-  app.patch('/api/bookings/:id/owner-action', isAuthenticated, async (req: any, res) => {
-    try {
-      const { id } = req.params;
-      const { action, comment } = req.body;
-      
-      if (!action || !['approve', 'reject', 'reschedule'].includes(action)) {
-        return res.status(400).json({ message: "Valid action is required (approve, reject, reschedule)" });
-      }
-      
-      const booking = await storage.updateBookingWithOwnerAction(id, action, comment);
-      
-      // Send AI response to customer based on owner action
-      try {
-        const notificationSent = await notifyCustomerOfBookingAction(id, action, comment);
-        console.log(`Notification sent to customer: ${notificationSent}`);
-      } catch (error) {
-        console.error('Error sending notification to customer:', error);
-        // Don't fail the request if notification fails
-      }
-      
-      res.json(booking);
-    } catch (error) {
-      console.error("Error processing owner action:", error);
-      res.status(500).json({ message: "Failed to process owner action" });
-    }
-  });
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const text = input.value.trim();
+        if (!text || !conversationId) return;
+        add('me', text);
+        input.value='';
+        const resp = await fetch('/api/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ message:text, conversationId }) });
+        const data = await resp.json();
+        add('bot', data.message || '...');
+      });
 
-  // Start reminder processing scheduler
-  reminderService.startReminderScheduler();
+      start();
+    </script>
+  </body>
+</html>`;
+    res.status(200).setHeader("Content-Type", "text/html").end(html);
+  });
 
   return httpServer;
 }

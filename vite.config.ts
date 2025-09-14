@@ -1,21 +1,16 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
-import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
+
+// Allow dynamic host whitelisting for dev tunnels (generic, not ngrok-specific)
+const extraHosts = (process.env.ALLOWED_HOSTS || "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+const allowAll = process.env.ALLOW_ALL_HOSTS === "1";
 
 export default defineConfig({
-  plugins: [
-    react(),
-    runtimeErrorOverlay(),
-    ...(process.env.NODE_ENV !== "production" &&
-    process.env.REPL_ID !== undefined
-      ? [
-          await import("@replit/vite-plugin-cartographer").then((m) =>
-            m.cartographer(),
-          ),
-        ]
-      : []),
-  ],
+  plugins: [react()],
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "client", "src"),
@@ -29,6 +24,9 @@ export default defineConfig({
     emptyOutDir: true,
   },
   server: {
+    // Allow external dev access; in production this file is not used.
+    // Permit any host when ALLOW_ALL_HOSTS=1, otherwise localhost and optional ALLOWED_HOSTS values.
+    allowedHosts: allowAll ? true : ["localhost", "127.0.0.1", "::1", ...extraHosts],
     fs: {
       strict: true,
       deny: ["**/.*"],
