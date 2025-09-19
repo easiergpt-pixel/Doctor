@@ -16,7 +16,8 @@ import {
   ChevronDown,
   Menu,
   X,
-  CheckCircle
+  CheckCircle,
+  Shield
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -131,6 +132,9 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
   }).length : 0;
   
   const navigationItems = getNavigationItems(unreadConversations, pendingBookings);
+  if ((user as any)?.role === 'admin' || (user as any)?.role === 'owner') {
+    navigationItems.push({ title: 'Admin', href: '/admin', icon: Shield });
+  }
 
   return (
     <>

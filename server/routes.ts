@@ -3,20 +3,40 @@ import { createServer, type Server } from "http";
 import { nanoid } from "nanoid";
 import { realtime } from "./services/websocket";
 import { generateAIResponse } from "./services/openai";
+import bcrypt from "bcryptjs";
 
 type Dict<T = any> = Record<string, T>;
 
-// In-memory demo data for local/dev usage
-const mockUser = {
-  id: "demo-user-1",
-  email: "demo@example.com",
-  firstName: "Demo",
-  lastName: "User",
-  preferredLanguage: "en",
-  aiPromptCustomization: "",
-  aiLanguageInstructions: "",
-  subscription: { plan: "starter", status: "active" },
+// In-memory users for local/dev (replace with DB later)
+type User = {
+  id: string;
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  passwordHash?: string;
+  role?: "owner" | "admin" | "staff";
+  preferredLanguage?: string;
+  aiPromptCustomization?: string;
+  aiLanguageInstructions?: string;
+  subscription?: { plan: string; status: string };
 };
+
+const usersById = new Map<string, User>();
+const usersByEmail = new Map<string, string>();
+
+// Seed demo user so the app can preview without sign-in
+(() => {
+  const demo: User = {
+    id: "demo-user-1",
+    email: "demo@example.com",
+    firstName: "Demo",
+    lastName: "User",
+    preferredLanguage: "en",
+    subscription: { plan: "starter", status: "active" },
+  };
+  usersById.set(demo.id, demo);
+  usersByEmail.set(demo.email, demo.id);
+})();
 
 const db = {
   // Global demo data (non-tenant specific)
@@ -50,9 +70,9 @@ function getBaseUrl(req: Request) {
   return `${proto}://${host}`;
 }
 
-function getCurrentUserId(_req: Request): string {
-  // In real app this comes from session/auth. For dev we use the mock user.
-  return mockUser.id;
+function getCurrentUserId(req: Request): string | null {
+  const uid = (req.session as any)?.userId;
+  return typeof uid === "string" ? uid : null;
 }
 
 function ensureSeedChannels(userId: string) {
@@ -83,12 +103,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Healthcheck
   app.get("/health", (_req, res) => res.json({ ok: true }));
 
-  // Simple dev auth endpoints
-  app.get("/api/login", (_req, res) => {
-    res.redirect("/");
+  // Auth: signup/login/logout/current-user
+  app.post("/api/auth/signup", async (req, res) => {
+    try {
+      const { email, password, firstName, lastName } = req.body || {};
+      if (typeof email !== "string" || typeof password !== "string") {
+        return res.status(400).json({ message: "email and password are required" });
+      }
+      const lower = email.toLowerCase();
+      if (usersByEmail.has(lower)) return res.status(409).json({ message: "Email already registered" });
+      const id = nanoid();
+      const passwordHash = await bcrypt.hash(password, 10);
+      const user: User = { id, email: lower, firstName, lastName, passwordHash, role: "owner", preferredLanguage: "en", subscription: { plan: "starter", status: "active" } };
+      usersByEmail.set(lower, id);
+      usersById.set(id, user);
+      (req.session as any).userId = id;
+      res.json({ id, email: lower, firstName, lastName });
+    } catch (err) {
+      res.status(500).json({ message: "Signup failed" });
+    }
   });
-  app.get("/api/logout", (_req, res) => res.status(204).end());
-  app.get("/api/auth/user", (_req, res) => res.json(mockUser));
+
+  app.post("/api/auth/login", async (req, res) => {
+    const { email, password } = req.body || {};
+    if (typeof email !== "string" || typeof password !== "string") {
+      return res.status(400).json({ message: "email and password are required" });
+    }
+    const id = usersByEmail.get(email.toLowerCase());
+    if (!id) return res.status(401).json({ message: "Invalid credentials" });
+    const user = usersById.get(id)!;
+    if (!user.passwordHash) return res.status(401).json({ message: "Invalid credentials" });
+    const ok = await bcrypt.compare(password, user.passwordHash);
+    if (!ok) return res.status(401).json({ message: "Invalid credentials" });
+    (req.session as any).userId = id;
+    res.json({ id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName });
+  });
+
+  app.post("/api/auth/logout", (req, res) => {
+    req.session.destroy(() => {});
+    res.status(204).end();
+  });
+
+  app.get("/api/auth/user", (req, res) => {
+    const uid = getCurrentUserId(req);
+    if (!uid) return res.status(401).json({ message: "unauthorized" });
+    const me = usersById.get(uid);
+    if (!me) return res.status(401).json({ message: "unauthorized" });
+    res.json(me);
+  });
 
   // Stats
   app.get("/api/stats", (_req, res) => {
@@ -98,6 +160,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
       avgResponseTime: "0.8s",
       satisfactionRate: "96%",
     });
+  });
+
+  // Admin endpoints
+  function requireAdmin(req: Request, res: Response): string | null {
+    const uid = getCurrentUserId(req);
+    if (!uid) {
+      res.status(401).json({ message: "unauthorized" });
+      return null;
+    }
+    const me = usersById.get(uid);
+    if (!me || (me.role !== "admin" && me.role !== "owner")) {
+      res.status(403).json({ message: "forbidden" });
+      return null;
+    }
+    return uid;
+  }
+
+  app.get("/api/admin/users", (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    const list = Array.from(usersById.values()).map((u) => ({ id: u.id, email: u.email, firstName: u.firstName, lastName: u.lastName, role: u.role || "owner" }));
+    res.json(list);
+  });
+
+  app.put("/api/admin/users/:id/role", (req, res) => {
+    const uid = requireAdmin(req, res);
+    if (!uid) return;
+    const me = usersById.get(uid)!;
+    if (me.role !== "owner") return res.status(403).json({ message: "only owner can change roles" });
+    const target = usersById.get(req.params.id);
+    if (!target) return res.status(404).json({ message: "not found" });
+    const role = (req.body?.role || "staff").toString();
+    if (!["owner", "admin", "staff"].includes(role)) return res.status(400).json({ message: "invalid role" });
+    target.role = role as any;
+    res.json({ id: target.id, role: target.role });
+  });
+
+  app.get("/api/admin/users/:id/channels", (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    const id = req.params.id;
+    ensureSeedChannels(id);
+    res.json(db.channelsByUser.get(id) || []);
   });
 
   // Conversations
@@ -131,7 +234,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const ai = await generateAIResponse(message);
     list.push({ id: nanoid(), sender: "ai", content: ai.content, createdAt: new Date().toISOString() });
     // notify over WS
-    realtime.broadcast(mockUser.id, { type: "conversation:update", conversationId });
+    const uid = getCurrentUserId(req);
+    if (uid) realtime.broadcast(uid, { type: "conversation:update", conversationId });
     res.json({ message: ai.content });
   });
 
@@ -141,14 +245,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const id = nanoid();
     const booking = { id, status: "pending", createdAt: new Date().toISOString(), ...req.body };
     db.bookings.push(booking);
-    realtime.broadcast(mockUser.id, { type: "booking:new", id });
+    const uid = getCurrentUserId(req);
+    if (uid) realtime.broadcast(uid, { type: "booking:new", id });
     res.json(booking);
   });
   app.put("/api/bookings/:id", (req, res) => {
     const b = db.bookings.find(x => x.id === req.params.id);
     if (!b) return res.status(404).json({ message: "Not found" });
     Object.assign(b, req.body ?? {});
-    realtime.broadcast(mockUser.id, { type: "booking:update", id: b.id });
+    const uid = getCurrentUserId(req);
+    if (uid) realtime.broadcast(uid, { type: "booking:update", id: b.id });
     res.json(b);
   });
   app.patch("/api/bookings/:id/owner-action", (req, res) => {
@@ -167,6 +273,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Channels (per user)
   app.get("/api/channels", (req, res) => {
     const uid = getCurrentUserId(req);
+    if (!uid) return res.status(401).json({ message: "unauthorized" });
     ensureSeedChannels(uid);
     res.json(db.channelsByUser.get(uid));
   });
@@ -178,6 +285,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   app.post("/api/channels", (req, res) => {
     const uid = getCurrentUserId(req);
+    if (!uid) return res.status(401).json({ message: "unauthorized" });
     ensureSeedChannels(uid);
     const id = nanoid();
     const type = (req.body?.type || "custom").toString();
@@ -188,6 +296,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/channels/:id/config", (req, res) => {
     const uid = getCurrentUserId(req);
+    if (!uid) return res.status(401).json({ message: "unauthorized" });
     ensureSeedChannels(uid);
     const list = db.channelsByUser.get(uid)!;
     const ch = list.find(c => c.id === req.params.id || c.id === req.params.id);
@@ -230,6 +339,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Convenience helper to get recommended webhook URLs for current user
   app.get("/api/channels/telegram/webhook-url", (req, res) => {
     const uid = getCurrentUserId(req);
+    if (!uid) return res.status(401).json({ message: "unauthorized" });
     const base = getBaseUrl(req);
     res.json({ url: `${base}/hooks/telegram/${uid}` });
   });
@@ -237,6 +347,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/channels/telegram/set-webhook", async (req, res) => {
     try {
       const uid = getCurrentUserId(req);
+      if (!uid) return res.status(401).json({ message: "unauthorized" });
       const cfg = db.telegramByUser.get(uid);
       if (!cfg) return res.status(400).json({ message: "Telegram not configured" });
       const base = (req.body?.publicUrl as string) || getBaseUrl(req);
@@ -268,7 +379,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // AI settings / training
   app.put("/api/ai-settings", (req, res) => {
-    Object.assign(mockUser, req.body ?? {});
+    const uid = getCurrentUserId(req);
+    if (!uid) return res.status(401).end();
+    const me = usersById.get(uid);
+    if (me) Object.assign(me, req.body ?? {});
     res.status(204).end();
   });
   app.get("/api/ai-training", (_req, res) => res.json(db.aiTraining));

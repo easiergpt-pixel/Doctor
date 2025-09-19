@@ -1,58 +1,37 @@
 import express from "express";
 
 const app = express();
-const PORT = parseInt(process.env.PORT || "5050", 10);
+const PORT = 5050;
 
-// Configuration via environment variables
-const BOT_TOKEN = process.env.BOT_TOKEN; // required
-const WEBHOOK_PATH = process.env.WEBHOOK_PATH || "/api/webhooks/telegram"; // optional override
-const SECRET_TOKEN = process.env.SECRET_TOKEN || "my-super-secret"; // should match setWebhook secret_token
-const PUBLIC_URL = process.env.PUBLIC_URL; // e.g. https://your-subdomain.ngrok-free.app
+// ⚠️ Replace if you later revoke/regenerate your token
+const BOT_TOKEN = "8025887309:AAElnWf_wnHyHIMee5IWTSPCY_jW_UWHPSA";
 
-if (!BOT_TOKEN) {
-  console.error("Missing BOT_TOKEN env var. Set it before starting the server.");
-  process.exit(1);
-}
+// Telegram will call this exact path
+const WEBHOOK_PATH = "/api/webhooks/telegram";
 
+// Choose any secret string; must match when you set the webhook
+const SECRET_TOKEN = "my-super-secret";
+
+// Parse JSON
 app.use(express.json());
 
-// Root + health endpoints
-app.get("/", (_req, res) => {
-  res.type("text/plain").send(
-    `tg-bot running on :${PORT}. POST updates to ${WEBHOOK_PATH}.\nHealth: /health\n`
+// ---------- Browser homepage (so / works) ----------
+app.get("/", (req, res) => {
+  res.send(
+    `<h1>My app is working ✅</h1>
+     <p>Ping JSON: <a href="${WEBHOOK_PATH}">${WEBHOOK_PATH}</a></p>`
   );
 });
-app.get("/health", (_req, res) => res.json({ ok: true }));
 
-// Simple helper to set Telegram webhook (optional)
-app.post("/admin/set-webhook", async (_req, res) => {
-  try {
-    if (!PUBLIC_URL) {
-      return res.status(400).json({ message: "Set PUBLIC_URL env var to your public base (e.g., ngrok https URL)." });
-    }
-    const url = `${PUBLIC_URL}${WEBHOOK_PATH}`;
-    const resp = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/setWebhook`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url, secret_token: SECRET_TOKEN }),
-    });
-    const data = await resp.json();
-    res.json({ ok: true, webhook: url, telegram: data });
-  } catch (err) {
-    console.error("set-webhook error:", err);
-    res.status(500).json({ ok: false, error: String(err) });
-  }
-});
-
-// Optional GET endpoint (lets you test in a browser)
-app.get(WEBHOOK_PATH, (_req, res) => {
+// ---------- Webhook ping (GET) ----------
+app.get(WEBHOOK_PATH, (req, res) => {
   res.json({ status: "ok" });
 });
 
-// Webhook endpoint (Telegram will POST updates here)
+// ---------- Telegram webhook (POST) ----------
 app.post(WEBHOOK_PATH, async (req, res) => {
   try {
-    // Verify Telegram's secret token header
+    // Verify Telegram's secret token (optional but recommended)
     const headerToken = req.get("X-Telegram-Bot-Api-Secret-Token");
     if (headerToken !== SECRET_TOKEN) {
       return res.sendStatus(401);
@@ -60,32 +39,29 @@ app.post(WEBHOOK_PATH, async (req, res) => {
 
     const update = req.body;
 
-    // Respond quickly so Telegram is satisfied
+    // Always acknowledge fast
     res.sendStatus(200);
 
-    // Handle a text message (simple echo bot)
-    if (update.message && update.message.text) {
+    // Simple echo for text messages
+    if (update?.message?.text) {
       const chatId = update.message.chat.id;
       const text = update.message.text;
 
-      // Send message back via Telegram API
+      // Node 18+ has global fetch; if older, install node-fetch and import it
       await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: `You said: ${text}`,
-        }),
+        body: JSON.stringify({ chat_id: chatId, text: `You said: ${text}` }),
       });
     }
   } catch (err) {
     console.error("Webhook error:", err);
-    // We already replied with 200 above
+    // (We already replied 200; just log errors.)
   }
 });
 
-// Start server
+// ---------- Start server ----------
 app.listen(PORT, () => {
-  console.log(`tg-bot server running at http://127.0.0.1:${PORT}${WEBHOOK_PATH}`);
+  console.log(`✅ Server running at http://127.0.0.1:${PORT}/`);
+  console.log(`   Webhook GET ping: http://127.0.0.1:${PORT}${WEBHOOK_PATH}`);
 });
-

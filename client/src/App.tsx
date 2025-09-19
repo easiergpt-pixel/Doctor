@@ -6,6 +6,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
+import Login from "@/pages/login";
+import Signup from "@/pages/signup";
 import Dashboard from "@/pages/dashboard";
 import Conversations from "@/pages/conversations";
 import ConversationDetail from "@/pages/conversation-detail";
@@ -20,6 +22,7 @@ import Notifications from "@/pages/notifications";
 import ScheduleSettings from "@/pages/schedule-settings";
 import BookingApproval from "@/pages/booking-approval";
 import Settings from "@/pages/settings";
+import Admin from "@/pages/admin";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -27,7 +30,11 @@ function Router() {
   return (
     <Switch>
       {isLoading || !isAuthenticated ? (
-        <Route path="/" component={Landing} />
+        <>
+          <Route path="/" component={Landing} />
+          <Route path="/login" component={Login} />
+          <Route path="/signup" component={Signup} />
+        </>
       ) : (
         <>
           <Route path="/" component={Dashboard} />
@@ -44,6 +51,7 @@ function Router() {
           <Route path="/schedule-settings" component={ScheduleSettings} />
           <Route path="/booking-approval" component={BookingApproval} />
           <Route path="/settings" component={Settings} />
+          <Route path="/admin" component={Admin} />
         </>
       )}
       <Route component={NotFound} />

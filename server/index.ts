@@ -3,12 +3,29 @@ import express, { type Request, type Response, type NextFunction } from "express
 try { await import("dotenv/config"); } catch {}
 import http from "http";
 import { registerRoutes } from "./routes";
+import session from "express-session";
+import createMemoryStore from "memorystore";
 import { setupVite, serveStatic, log } from "./vite";
 import { reminderService } from "./services/reminderService";
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Sessions (dev-friendly MemoryStore; swap for PG/Redis in prod)
+const MemoryStore = createMemoryStore(session);
+app.use(
+  session({
+    store: new MemoryStore({ checkPeriod: 24 * 60 * 60 * 1000 }),
+    secret: process.env.SESSION_SECRET || "change-me",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      sameSite: "lax",
+      secure: app.get("env") !== "development",
+    },
+  })
+);
 
 // Simple request logger
 app.use((req: Request, res: Response, next: NextFunction) => {
